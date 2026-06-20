@@ -160,9 +160,27 @@
     </div>
   </div>
 
+  <!-- HARINA (solo si es MATERIA PRIMA) -->
+  <div class="card hidden" id="cardHarina">
+    <label>¿Es harina?</label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;">
+      <button class="area-btn selected" id="btnHarinaNo" onclick="selHarina(false)">No</button>
+      <button class="area-btn" id="btnHarinaS" onclick="selHarina(true)">Sí (12% adicional)</button>
+    </div>
+  </div>
+
+  <!-- TIPO DE MONTO -->
+  <div class="card hidden" id="cardTipoMonto">
+    <label>Tipo de monto</label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;">
+      <button class="area-btn" id="btnNeto" onclick="selTipoMonto('neto')">Neto (+ IVA 19%)</button>
+      <button class="area-btn" id="btnBruto" onclick="selTipoMonto('bruto')">Bruto (con IVA)</button>
+    </div>
+  </div>
+
   <!-- MONTO -->
-  <div class="card">
-    <label>Monto <span style="font-weight:400;color:#aaa">(pesos chilenos)</span></label>
+  <div class="card hidden" id="cardMonto">
+    <label id="labelMonto">Monto <span style="font-weight:400;color:#aaa">(pesos chilenos)</span></label>
     <div class="monto-input-wrap">
       <span>$</span>
       <input type="number" id="monto" placeholder="0" min="0"/>
@@ -250,6 +268,23 @@ let selectedArea = null;
 let selectedFile = null;
 let records = [];
 let currentItem = null;
+let tipoMonto = null; // 'neto' o 'bruto'
+
+function selTipoMonto(tipo) {
+  tipoMonto = tipo;
+  document.getElementById('btnNeto').classList.toggle('selected', tipo === 'neto');
+  document.getElementById('btnBruto').classList.toggle('selected', tipo === 'bruto');
+  // Mostrar campo monto
+  const cardMonto = document.getElementById('cardMonto');
+  cardMonto.classList.remove('hidden');
+  // Actualizar label según si es harina
+  const esHarina = currentItem && currentItem.item === 'MATERIA PRIMA' && document.getElementById('btnHarinaS') && document.getElementById('btnHarinaS').classList.contains('selected');
+  const pct = esHarina ? '31%' : '19%';
+  document.getElementById('labelMonto').innerHTML = tipo === 'neto'
+    ? `Monto neto <span style="font-weight:400;color:#aaa">(se calculará IVA ${pct})</span>`
+    : `Monto bruto <span style="font-weight:400;color:#aaa">(con IVA incluido)</span>`;
+  checkReady();
+}
 
 // Elementos
 const itemSelect = document.getElementById('itemGasto');
@@ -275,20 +310,32 @@ ITEMS.forEach(i => {
   itemSelect.appendChild(opt);
 });
 
-// Al seleccionar ítem
+function selHarina(esHarina) {
+  document.getElementById('btnHarinaNo').classList.toggle('selected', !esHarina);
+  document.getElementById('btnHarinaS').classList.toggle('selected', esHarina);
+  // Actualizar label de monto si ya está visible
+  if (tipoMonto) selTipoMonto(tipoMonto);
+}
 itemSelect.addEventListener('change', () => {
   const val = itemSelect.value;
   selectedArea = null;
+  tipoMonto = null;
   areaGrid.querySelectorAll('.area-btn').forEach(b => b.classList.remove('selected'));
   document.getElementById('pct1').value = '';
   document.getElementById('pct2').value = '';
   document.getElementById('area1').value = '';
   document.getElementById('area2').value = '';
+  document.getElementById('btnNeto').classList.remove('selected');
+  document.getElementById('btnBruto').classList.remove('selected');
+  document.getElementById('cardTipoMonto').classList.add('hidden');
+  document.getElementById('cardMonto').classList.add('hidden');
+  document.getElementById('monto').value = '';
 
   if (!val) {
     infoGrid.style.display = 'none';
     cardSeleccionarArea.classList.add('hidden');
     cardProrrateo.classList.add('hidden');
+    document.getElementById('cardHarina') && document.getElementById('cardHarina').classList.add('hidden');
     currentItem = null;
     checkReady();
     return;
@@ -301,6 +348,16 @@ itemSelect.addEventListener('change', () => {
   document.getElementById('infoArea').textContent = currentItem.area;
   infoGrid.style.display = 'grid';
 
+  // Mostrar card harina solo si es Materia Prima
+  const cardHarina = document.getElementById('cardHarina');
+  if (cardHarina) {
+    if (currentItem.item === 'MATERIA PRIMA') {
+      cardHarina.classList.remove('hidden');
+    } else {
+      cardHarina.classList.add('hidden');
+    }
+  }
+
   if (currentItem.area === 'SELECCIONAR') {
     cardSeleccionarArea.classList.remove('hidden');
     cardProrrateo.classList.add('hidden');
@@ -312,6 +369,9 @@ itemSelect.addEventListener('change', () => {
     cardProrrateo.classList.add('hidden');
     selectedArea = currentItem.area;
   }
+
+  // Mostrar tipo de monto siempre que haya ítem seleccionado
+  document.getElementById('cardTipoMonto').classList.remove('hidden');
   checkReady();
 });
 
@@ -353,6 +413,8 @@ function validarProrrateo() {
   document.getElementById(id).addEventListener('change', () => { validarProrrateo(); checkReady(); });
   document.getElementById(id).addEventListener('input', () => { validarProrrateo(); checkReady(); });
 });
+
+document.getElementById('monto').addEventListener('input', () => checkReady());
 
 // Foto
 uploadZone.addEventListener('click', () => fileInput.click());
@@ -424,6 +486,9 @@ async function extractMonto(imageData) {
 
 function checkReady() {
   if (!currentItem || !selectedFile) { btnSubmit.disabled = true; return; }
+  if (!tipoMonto) { btnSubmit.disabled = true; return; }
+  const monto = document.getElementById('monto').value.trim();
+  if (!monto || parseFloat(monto) <= 0) { btnSubmit.disabled = true; return; }
   if (currentItem.area === 'SELECCIONAR' && !selectedArea) { btnSubmit.disabled = true; return; }
   if (currentItem.area === 'PRORRATEADO' && !validarProrrateo()) { btnSubmit.disabled = true; return; }
   btnSubmit.disabled = false;
@@ -463,6 +528,8 @@ btnSubmit.addEventListener('click', async () => {
       subTipo: currentItem.subTipo,
       area: areaFinal,
       prorrateo: prorrateoData,
+      tipoMonto: tipoMonto || 'bruto',
+      esHarina: currentItem.item === 'MATERIA PRIMA' && document.getElementById('btnHarinaS') && document.getElementById('btnHarinaS').classList.contains('selected'),
       monto: monto || '',
       fileName: selectedFile.name,
       mimeType: selectedFile.type,
@@ -503,10 +570,18 @@ document.getElementById('btnNew').addEventListener('click', () => {
   currentItem = null;
   selectedArea = null;
   selectedFile = null;
+  tipoMonto = null;
   itemSelect.value = '';
   infoGrid.style.display = 'none';
   cardSeleccionarArea.classList.add('hidden');
   cardProrrateo.classList.add('hidden');
+  document.getElementById('cardTipoMonto').classList.add('hidden');
+  document.getElementById('cardMonto').classList.add('hidden');
+  document.getElementById('btnNeto').classList.remove('selected');
+  document.getElementById('btnBruto').classList.remove('selected');
+  if (document.getElementById('cardHarina')) document.getElementById('cardHarina').classList.add('hidden');
+  document.getElementById('btnHarinaNo') && document.getElementById('btnHarinaNo').classList.add('selected');
+  document.getElementById('btnHarinaS') && document.getElementById('btnHarinaS').classList.remove('selected');
   areaGrid.querySelectorAll('.area-btn').forEach(b => b.classList.remove('selected'));
   document.getElementById('pct1').value = '';
   document.getElementById('pct2').value = '';
