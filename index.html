@@ -344,6 +344,20 @@
   </div>
 </div>
 
+<!-- MODAL ALERTA DISRUPTIVA -->
+<div class="modal-overlay" id="modalAlerta" style="align-items:center;">
+  <div class="modal" style="border-radius:20px;padding:28px 22px 32px;max-width:420px;margin:20px;">
+    <div style="text-align:center;margin-bottom:20px;">
+      <div style="font-size:52px;line-height:1;margin-bottom:10px;">⚠️</div>
+      <div style="font-size:19px;font-weight:800;color:#c0392b;margin-bottom:6px;">¡Atención!</div>
+      <div style="font-size:15px;font-weight:600;color:#333;">Tienes obligaciones próximas a vencer</div>
+    </div>
+    <div id="alertaModalLista"></div>
+    <button onclick="cerrarModalAlerta()" style="width:100%;padding:15px;background:#003a79;border:none;border-radius:12px;font-size:16px;font-weight:700;color:white;cursor:pointer;margin-top:20px;">Entendido</button>
+    <button onclick="irAObligaciones()" style="width:100%;padding:12px;background:transparent;border:none;font-size:14px;font-weight:600;color:#003a79;cursor:pointer;margin-top:8px;">Ver todas las obligaciones →</button>
+  </div>
+</div>
+
 <script>
 const BACKEND_URL = "https://script.google.com/macros/s/AKfycbxoOoP0oATiGmu1E_cV5awS-BD_k34cn-pW0xdVpQJbLn1-w4vSS6j1qjh9QUxW9o-i/exec";
 
@@ -854,20 +868,63 @@ function cerrarModal(id) {
   document.getElementById(id).classList.remove('show');
 }
 
-// Cerrar modal tocando overlay
+// Cerrar modales tocando overlay (excepto alerta disruptiva)
 document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  if (overlay.id === 'modalAlerta') return;
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('show'); });
 });
 
-// Al cargar, revisar alertas si ya hay obligaciones cargadas
+function cerrarModalAlerta() {
+  document.getElementById('modalAlerta').classList.remove('show');
+}
+
+function irAObligaciones() {
+  cerrarModalAlerta();
+  const tab = document.querySelectorAll('.nav-tab')[1];
+  showSection('obligaciones', tab);
+}
+
+function mostrarAlertaDisruptiva(proximas) {
+  if (!proximas.length) return;
+
+  const hoyStr = hoy();
+  const mananaD = new Date(); mananaD.setDate(mananaD.getDate()+1);
+  const mananaStr = mananaD.toISOString().slice(0,10);
+
+  const lista = document.getElementById('alertaModalLista');
+  lista.innerHTML = proximas.map(o => {
+    const prox = proximaFecha(o);
+    const esHoy = prox === hoyStr;
+    const esMañana = prox === mananaStr;
+    const etiqueta = esHoy
+      ? '<span style="background:#c0392b;color:white;font-size:11px;font-weight:700;padding:2px 8px;border-radius:8px;">HOY</span>'
+      : '<span style="background:#e67e22;color:white;font-size:11px;font-weight:700;padding:2px 8px;border-radius:8px;">MAÑANA</span>';
+    const montoStr = o.montoEstimado ? ` · $${parseInt(o.montoEstimado).toLocaleString('es-CL')}` : '';
+    const obsStr = o.obs ? `<div style="font-size:12px;color:#888;margin-top:2px;">${o.obs}</div>` : '';
+    return `<div style="background:#fff5f5;border:1.5px solid #e74c3c;border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <span style="font-size:15px;font-weight:700;color:#222;">⚡ ${o.nombre}</span>
+        ${etiqueta}
+      </div>
+      <div style="font-size:13px;color:#555;">📅 ${fmtFecha(prox)}${montoStr}</div>
+      ${obsStr}
+    </div>`;
+  }).join('');
+
+  document.getElementById('modalAlerta').classList.add('show');
+}
+
+// Al cargar la app — revisar alertas y mostrar modal disruptivo
 window.addEventListener('load', () => {
-  // Precargar obligaciones en background para el badge
   fetch(BACKEND_URL, { method: 'POST', body: JSON.stringify({ action: 'getObligaciones' }) })
     .then(r => r.json()).then(data => {
       obligaciones = data.obligaciones || [];
-      const alertas = obligaciones.filter(o => estadoOblig(o) === 'proximo').length;
+      const proximas = obligaciones.filter(o => estadoOblig(o) === 'proximo');
+      // Badge en pestaña
       const badge = document.getElementById('badgeOblig');
-      if (alertas > 0) { badge.textContent = alertas; badge.classList.add('show'); }
+      if (proximas.length) { badge.textContent = proximas.length; badge.classList.add('show'); }
+      // Modal disruptivo
+      if (proximas.length) mostrarAlertaDisruptiva(proximas);
     }).catch(() => {});
 });
 </script>
