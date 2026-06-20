@@ -292,6 +292,15 @@
       <input type="date" id="pagoFecha"/>
     </div>
     <div class="modal-field">
+      <label>Comprobante <span style="font-weight:400;color:#aaa">(opcional)</span></label>
+      <div class="upload-zone" id="pagoUploadZone" style="padding:16px 20px;">
+        <span id="pagoUploadIcon" style="font-size:28px;display:block;margin-bottom:6px">📷</span>
+        <p id="pagoUploadText" style="font-size:13px;">Toca para fotografiar o subir imagen</p>
+      </div>
+      <input type="file" id="pagoFileInput" accept="image/*" capture="environment"/>
+      <img id="pagoPreviewImg" style="width:100%;border-radius:8px;margin-top:10px;max-height:160px;object-fit:cover;display:none;" alt="comprobante"/>
+    </div>
+    <div class="modal-field">
       <label>Observación <span style="font-weight:400;color:#aaa">(opcional)</span></label>
       <textarea id="pagoObs" placeholder="Ej: pagado con transferencia..." style="min-height:50px"></textarea>
     </div>
@@ -651,6 +660,23 @@ function renderRecords() {
 let obligaciones = [];
 let obligEditId = null;
 let obligPagoId = null;
+let pagoFile = null;
+
+// Comprobante de pago
+document.getElementById('pagoUploadZone').addEventListener('click', () => document.getElementById('pagoFileInput').click());
+document.getElementById('pagoFileInput').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  pagoFile = file;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    document.getElementById('pagoPreviewImg').src = ev.target.result;
+    document.getElementById('pagoPreviewImg').style.display = 'block';
+    document.getElementById('pagoUploadZone').classList.add('has-file');
+    document.getElementById('pagoUploadText').textContent = file.name.length > 28 ? file.name.substring(0,25)+'...' : file.name;
+    document.getElementById('pagoUploadIcon').textContent = '🖼️';
+  };
+  reader.readAsDataURL(file);
+});
 
 async function cargarObligaciones() {
   document.getElementById('obligList').innerHTML = '<div class="loading-text">Cargando...</div>';
@@ -796,20 +822,39 @@ async function confirmarPago() {
   const obs = document.getElementById('pagoObs').value;
   if (!monto || !fecha) { alert('Ingresa el monto y la fecha de pago'); return; }
 
+  let imageData = null, fileName = null, mimeType = null;
+  if (pagoFile) {
+    imageData = await fileToBase64(pagoFile);
+    fileName = pagoFile.name;
+    mimeType = pagoFile.type;
+  }
+
   try {
     const r = await fetch(BACKEND_URL, { method: 'POST', body: JSON.stringify({
       action: 'registrarPago',
       id: obligPagoId,
       montoPago: monto,
       fechaPago: fecha,
-      obsPago: obs
+      obsPago: obs,
+      imageData, fileName, mimeType
     })});
     const data = await r.json();
     if (data.ok) {
+      resetModalPago();
       cerrarModal('modalPago');
       await cargarObligaciones();
     } else { alert('Error al registrar pago: ' + (data.error || '')); }
   } catch(e) { alert('Error de conexión'); }
+}
+
+function resetModalPago() {
+  pagoFile = null;
+  document.getElementById('pagoFileInput').value = '';
+  document.getElementById('pagoPreviewImg').style.display = 'none';
+  document.getElementById('pagoPreviewImg').src = '';
+  document.getElementById('pagoUploadZone').classList.remove('has-file');
+  document.getElementById('pagoUploadText').textContent = 'Toca para fotografiar o subir imagen';
+  document.getElementById('pagoUploadIcon').textContent = '📷';
 }
 
 function abrirModalObligacion(id) {
@@ -866,6 +911,7 @@ async function eliminarObligacion() {
 
 function cerrarModal(id) {
   document.getElementById(id).classList.remove('show');
+  if (id === 'modalPago') resetModalPago();
 }
 
 // Cerrar modales tocando overlay (excepto alerta disruptiva)
