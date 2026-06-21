@@ -148,6 +148,19 @@
   .alerta-banner-item:last-child { border-bottom: none; }
 
   .loading-text { text-align: center; padding: 30px; color: #aaa; font-size: 14px; }
+
+  /* ANÁLISIS */
+  .an-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .an-label { font-size:13px; font-weight:600; color:#333; min-width:80px; }
+  .an-bar-wrap { flex:1; margin:0 10px; background:#f0f0f0; border-radius:6px; height:10px; overflow:hidden; }
+  .an-bar { height:10px; border-radius:6px; transition:width 0.4s ease; }
+  .an-valor { font-size:13px; font-weight:700; color:#003a79; min-width:80px; text-align:right; }
+  .an-pct { font-size:11px; color:#999; min-width:36px; text-align:right; }
+  .evol-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+  .evol-mes { font-size:12px; font-weight:600; color:#555; min-width:55px; }
+  .evol-bar-wrap { flex:1; background:#f0f0f0; border-radius:6px; height:8px; overflow:hidden; }
+  .evol-bar { height:8px; border-radius:6px; background:#003a79; transition:width 0.4s; }
+  .evol-valor { font-size:12px; font-weight:700; color:#003a79; min-width:90px; text-align:right; }
 </style>
 <script src='https://unpkg.com/tesseract.js@4.1.1/dist/tesseract.min.js'></script>
 </head>
@@ -159,6 +172,7 @@
   <div class="nav-tabs">
     <div class="nav-tab active" onclick="showSection('registrar',this)">📝 Registrar</div>
     <div class="nav-tab" onclick="showSection('obligaciones',this)">📅 Obligaciones<span class="badge" id="badgeOblig"></span></div>
+    <div class="nav-tab" onclick="showSection('analisis',this)">📊 Análisis</div>
   </div>
 </div>
 
@@ -279,6 +293,83 @@
 </div>
 </div>
 
+</div>
+</div>
+
+<!-- ===== SECCIÓN ANÁLISIS ===== -->
+<div id="sec-analisis" class="section">
+<div class="container">
+
+  <!-- SELECTOR PERÍODO -->
+  <div class="card" style="padding:14px 16px;">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <select id="anMes" onchange="cargarAnalisis()" style="flex:1;min-width:120px;font-size:14px;padding:8px 10px;">
+      </select>
+      <select id="anAnio" onchange="cargarAnalisis()" style="width:90px;font-size:14px;padding:8px 10px;">
+      </select>
+    </div>
+  </div>
+
+  <div id="anCargando" class="loading-text">Selecciona un período para ver el análisis</div>
+  <div id="anContenido" style="display:none;">
+
+    <!-- RESUMEN TOTAL -->
+    <div class="card" style="padding:16px;">
+      <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:12px;">📋 Resumen del mes</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div style="background:#f0f7ff;border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:11px;color:#666;font-weight:600;text-transform:uppercase;">Total gastos</div>
+          <div style="font-size:20px;font-weight:800;color:#003a79;margin-top:4px;" id="anTotalGastos">$0</div>
+        </div>
+        <div style="background:#fff8e1;border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:11px;color:#666;font-weight:600;text-transform:uppercase;">N° registros</div>
+          <div style="font-size:20px;font-weight:800;color:#856404;margin-top:4px;" id="anNRegistros">0</div>
+        </div>
+        <div style="background:#f0fff4;border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:11px;color:#666;font-weight:600;text-transform:uppercase;">Gastos fijos</div>
+          <div style="font-size:18px;font-weight:700;color:#155724;margin-top:4px;" id="anFijos">$0</div>
+        </div>
+        <div style="background:#fff0f0;border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:11px;color:#666;font-weight:600;text-transform:uppercase;">Gastos variables</div>
+          <div style="font-size:18px;font-weight:700;color:#c0392b;margin-top:4px;" id="anVariables">$0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- POR ÁREA -->
+    <div class="card" style="padding:16px;">
+      <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:12px;">📍 Por área</div>
+      <div id="anAreas"></div>
+    </div>
+
+    <!-- POR CATEGORÍA FIJO/VARIABLE -->
+    <div class="card" style="padding:16px;">
+      <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:12px;">🏷️ Fijo vs Variable</div>
+      <div id="anFijoVar"></div>
+    </div>
+
+    <!-- POR TIPO DIRECTO/INDIRECTO -->
+    <div class="card" style="padding:16px;">
+      <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:12px;">🔀 Directo vs Indirecto</div>
+      <div id="anDirInd"></div>
+    </div>
+
+    <!-- EVOLUCIÓN MENSUAL -->
+    <div class="card" style="padding:16px;">
+      <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:12px;">📈 Evolución mensual</div>
+      <div id="anEvolucion"></div>
+    </div>
+
+    <!-- TOP ÍTEMS -->
+    <div class="card" style="padding:16px;">
+      <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:12px;">🔝 Top ítems del mes</div>
+      <div id="anTopItems"></div>
+    </div>
+
+  </div>
+</div>
+</div>
+
 <!-- MODAL PAGO -->
 <div class="modal-overlay" id="modalPago">
   <div class="modal">
@@ -377,6 +468,7 @@ function showSection(id, tab) {
   document.getElementById('sec-' + id).classList.add('active');
   tab.classList.add('active');
   if (id === 'obligaciones') cargarObligaciones();
+  if (id === 'analisis') cargarAnalisis();
 }
 
 // ─── ESTADO REGISTRO ──────────────────────────
@@ -973,6 +1065,143 @@ window.addEventListener('load', () => {
       if (proximas.length) mostrarAlertaDisruptiva(proximas);
     }).catch(() => {});
 });
+
+// ─── ANÁLISIS ─────────────────────────────────
+const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const COLORES_AREA = { BOL:'#003a79', PAN:'#e67e22', CAF:'#8e44ad', PAS:'#27ae60', ADMIN:'#2980b9', VENTAS:'#c0392b', PRORRATEADO:'#7f8c8d' };
+
+function initSelectorPeriodo() {
+  const selMes = document.getElementById('anMes');
+  const selAnio = document.getElementById('anAnio');
+  const hoyD = new Date();
+  MESES.forEach((m,i) => {
+    const opt = document.createElement('option');
+    opt.value = i+1; opt.textContent = m;
+    if (i === hoyD.getMonth()) opt.selected = true;
+    selMes.appendChild(opt);
+  });
+  for (let y = hoyD.getFullYear(); y >= hoyD.getFullYear()-2; y--) {
+    const opt = document.createElement('option');
+    opt.value = y; opt.textContent = y;
+    if (y === hoyD.getFullYear()) opt.selected = true;
+    selAnio.appendChild(opt);
+  }
+}
+
+async function cargarAnalisis() {
+  const mes = parseInt(document.getElementById('anMes').value);
+  const anio = parseInt(document.getElementById('anAnio').value);
+  const carg = document.getElementById('anCargando');
+  carg.textContent = 'Cargando datos...'; carg.style.display = 'block';
+  document.getElementById('anContenido').style.display = 'none';
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getGastos', mes, anio }) });
+    const data = await r.json();
+    if (data.gastos !== undefined) {
+      renderAnalisis(data.gastos, mes, anio);
+      carg.style.display = 'none';
+      document.getElementById('anContenido').style.display = 'block';
+    } else { carg.textContent = 'No se pudieron cargar los datos.'; }
+  } catch(e) { carg.textContent = 'Error de conexión.'; }
+}
+
+function parseMonto(v) { return parseFloat(String(v||'0').replace(/[$\.]/g,'').replace(',','.')) || 0; }
+
+function renderAnalisis(gastos, mes, anio) {
+  const mesStr = String(mes).padStart(2,'0');
+  const del_mes = gastos.filter(g => {
+    const f = String(g.fecha||'');
+    const parts = f.split('/');
+    if (parts.length === 3) return parts[1] === mesStr && parts[2] === String(anio);
+    return f.startsWith(`${anio}-${mesStr}`);
+  });
+
+  const total = del_mes.reduce((s,g) => s+parseMonto(g.montoFinal), 0);
+  const nReg = del_mes.length;
+  const fijos = del_mes.filter(g => (g.categoria||'').toUpperCase()==='FIJO').reduce((s,g)=>s+parseMonto(g.montoFinal),0);
+  const variables = del_mes.filter(g => (g.categoria||'').toUpperCase()==='VARIABLE').reduce((s,g)=>s+parseMonto(g.montoFinal),0);
+
+  document.getElementById('anTotalGastos').textContent = '$'+total.toLocaleString('es-CL');
+  document.getElementById('anNRegistros').textContent = nReg;
+  document.getElementById('anFijos').textContent = '$'+fijos.toLocaleString('es-CL');
+  document.getElementById('anVariables').textContent = '$'+variables.toLocaleString('es-CL');
+
+  // POR ÁREA
+  const areas = {};
+  del_mes.forEach(g => { const a=(g.area||'OTRO').toUpperCase(); areas[a]=(areas[a]||0)+parseMonto(g.montoFinal); });
+  const maxArea = Math.max(...Object.values(areas),1);
+  document.getElementById('anAreas').innerHTML = Object.entries(areas).sort((a,b)=>b[1]-a[1])
+    .map(([a,v])=>`<div class="an-row">
+      <span class="an-label">${a}</span>
+      <div class="an-bar-wrap"><div class="an-bar" style="width:${Math.round(v/maxArea*100)}%;background:${COLORES_AREA[a]||'#003a79'}"></div></div>
+      <span class="an-valor">$${v.toLocaleString('es-CL')}</span>
+      <span class="an-pct">${total?Math.round(v/total*100):0}%</span>
+    </div>`).join('') || '<div style="color:#aaa;font-size:13px;">Sin datos</div>';
+
+  // FIJO vs VARIABLE
+  const maxFV = Math.max(fijos,variables,1);
+  document.getElementById('anFijoVar').innerHTML = [['FIJO',fijos,'#27ae60'],['VARIABLE',variables,'#e67e22']]
+    .map(([l,v,c])=>`<div class="an-row">
+      <span class="an-label">${l}</span>
+      <div class="an-bar-wrap"><div class="an-bar" style="width:${Math.round(v/maxFV*100)}%;background:${c}"></div></div>
+      <span class="an-valor">$${v.toLocaleString('es-CL')}</span>
+      <span class="an-pct">${total?Math.round(v/total*100):0}%</span>
+    </div>`).join('');
+
+  // DIRECTO vs INDIRECTO
+  const directo = del_mes.filter(g=>(g.tipo||'').toUpperCase()==='DIRECTO').reduce((s,g)=>s+parseMonto(g.montoFinal),0);
+  const indirecto = del_mes.filter(g=>(g.tipo||'').toUpperCase()==='INDIRECTO').reduce((s,g)=>s+parseMonto(g.montoFinal),0);
+  const maxDI = Math.max(directo,indirecto,1);
+  document.getElementById('anDirInd').innerHTML = [['DIRECTO',directo,'#2980b9'],['INDIRECTO',indirecto,'#8e44ad']]
+    .map(([l,v,c])=>`<div class="an-row">
+      <span class="an-label">${l}</span>
+      <div class="an-bar-wrap"><div class="an-bar" style="width:${Math.round(v/maxDI*100)}%;background:${c}"></div></div>
+      <span class="an-valor">$${v.toLocaleString('es-CL')}</span>
+      <span class="an-pct">${total?Math.round(v/total*100):0}%</span>
+    </div>`).join('');
+
+  // EVOLUCIÓN MENSUAL (últimos 6 meses en los datos)
+  const porMes = {};
+  gastos.forEach(g => {
+    const f = String(g.fecha||'');
+    let key = '';
+    const parts = f.split('/');
+    if (parts.length===3) key=`${parts[2]}-${parts[1]}`;
+    else if (f.length>=7) key=f.slice(0,7);
+    if (key) porMes[key]=(porMes[key]||0)+parseMonto(g.montoFinal);
+  });
+  const mesesOrden = Object.keys(porMes).sort().slice(-6);
+  const maxEvol = Math.max(...mesesOrden.map(k=>porMes[k]),1);
+  document.getElementById('anEvolucion').innerHTML = mesesOrden.length
+    ? mesesOrden.map(k=>{
+        const [y,m]=k.split('-');
+        const label=`${MESES[parseInt(m)-1].slice(0,3)} ${y}`;
+        const v=porMes[k];
+        const esMesActual = k===`${anio}-${mesStr}`;
+        return `<div class="evol-row">
+          <span class="evol-mes">${label}</span>
+          <div class="evol-bar-wrap"><div class="evol-bar" style="width:${Math.round(v/maxEvol*100)}%;background:${esMesActual?'#e67e22':'#003a79'}"></div></div>
+          <span class="evol-valor">$${v.toLocaleString('es-CL')}</span>
+        </div>`;
+      }).join('')
+    : '<div style="color:#aaa;font-size:13px;">Sin datos de meses anteriores</div>';
+
+  // TOP ÍTEMS
+  const porItem = {};
+  del_mes.forEach(g=>{ const i=g.item||'Sin ítem'; porItem[i]=(porItem[i]||0)+parseMonto(g.montoFinal); });
+  const topItems = Object.entries(porItem).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const maxItem = Math.max(...topItems.map(x=>x[1]),1);
+  document.getElementById('anTopItems').innerHTML = topItems.length
+    ? topItems.map(([i,v])=>`<div class="an-row">
+        <span class="an-label" style="font-size:12px;min-width:110px;max-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${i}">${i}</span>
+        <div class="an-bar-wrap"><div class="an-bar" style="width:${Math.round(v/maxItem*100)}%;background:#003a79"></div></div>
+        <span class="an-valor">$${v.toLocaleString('es-CL')}</span>
+      </div>`).join('')
+    : '<div style="color:#aaa;font-size:13px;">Sin datos</div>';
+}
+
+// Init selector de período
+initSelectorPeriodo();
 </script>
 </body>
 </html>
