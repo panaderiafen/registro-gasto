@@ -250,6 +250,21 @@
     </div>
   </div>
 
+  <!-- FORMA DE PAGO -->
+  <div class="card hidden" id="cardFormaPago">
+    <label>Forma de pago</label>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:4px;">
+      <button class="area-btn selected" id="btnContado" onclick="selFormaPago('contado')">💵 Contado</button>
+      <button class="area-btn" id="btnTarjeta" onclick="selFormaPago('tarjeta')">💳 Tarjeta</button>
+      <button class="area-btn" id="btnCredProv" onclick="selFormaPago('proveedor')">📋 Crédito</button>
+    </div>
+    <div id="cardFechaPago" class="hidden" style="margin-top:12px;">
+      <label style="margin-bottom:6px;">Fecha de pago</label>
+      <input type="date" id="fechaPago" style="width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:15px;"/>
+      <div id="fechaPagoHint" style="font-size:12px;color:#888;margin-top:4px;"></div>
+    </div>
+  </div>
+
   <!-- FOTO -->
   <div class="card">
     <label>Foto de la boleta o factura</label>
@@ -522,7 +537,37 @@ const ITEMS = [
   { item: "IVA", categoria: "VARIABLE", tipo: "INDIRECTO", subTipo: "PASIVO", area: "ADMIN" }
 ];
 
-let selectedArea = null, selectedFile = null, records = [], currentItem = null, tipoMonto = null;
+let selectedArea = null, selectedFile = null, records = [], currentItem = null, tipoMonto = null, formaPago = 'contado';
+
+function selFormaPago(tipo) {
+  formaPago = tipo;
+  document.getElementById('btnContado').classList.toggle('selected', tipo === 'contado');
+  document.getElementById('btnTarjeta').classList.toggle('selected', tipo === 'tarjeta');
+  document.getElementById('btnCredProv').classList.toggle('selected', tipo === 'proveedor');
+  const cardFecha = document.getElementById('cardFechaPago');
+  const hint = document.getElementById('fechaPagoHint');
+  const inputFecha = document.getElementById('fechaPago');
+  if (tipo === 'tarjeta') {
+    cardFecha.classList.remove('hidden');
+    // Calcular día 20 del mes siguiente
+    const hoyD = new Date();
+    const mesS = hoyD.getMonth() + 2 > 12 ? 1 : hoyD.getMonth() + 2;
+    const anioS = hoyD.getMonth() + 2 > 12 ? hoyD.getFullYear() + 1 : hoyD.getFullYear();
+    const fechaAuto = `${anioS}-${String(mesS).padStart(2,'0')}-20`;
+    inputFecha.value = fechaAuto;
+    hint.textContent = '📅 Fecha automática: día 20 del mes siguiente';
+    hint.style.color = '#2980b9';
+  } else if (tipo === 'proveedor') {
+    cardFecha.classList.remove('hidden');
+    inputFecha.value = '';
+    hint.textContent = '📅 Ingresa la fecha acordada con el proveedor';
+    hint.style.color = '#888';
+  } else {
+    cardFecha.classList.add('hidden');
+    inputFecha.value = '';
+  }
+  checkReady();
+}
 
 const itemSelect = document.getElementById('itemGasto');
 const infoGrid = document.getElementById('infoGrid');
@@ -573,6 +618,7 @@ function selTipoMonto(tipo) {
   document.getElementById('btnNeto').classList.toggle('selected', tipo === 'neto');
   document.getElementById('btnBruto').classList.toggle('selected', tipo === 'bruto');
   document.getElementById('cardMonto').classList.remove('hidden');
+  document.getElementById('cardFormaPago').classList.remove('hidden');
   const esH = currentItem && currentItem.item === 'MATERIA PRIMA' && document.getElementById('btnHarinaS').classList.contains('selected');
   const pct = esH ? '31%' : '19%';
   document.getElementById('labelMonto').innerHTML = tipo === 'neto'
@@ -590,7 +636,10 @@ itemSelect.addEventListener('change', () => {
   document.getElementById('btnBruto').classList.remove('selected');
   document.getElementById('cardTipoMonto').classList.add('hidden');
   document.getElementById('cardMonto').classList.add('hidden');
+  document.getElementById('cardFormaPago').classList.add('hidden');
+  document.getElementById('cardFechaPago').classList.add('hidden');
   document.getElementById('monto').value = '';
+  formaPago = 'contado';
 
   if (!val) {
     infoGrid.style.display = 'none';
@@ -709,7 +758,8 @@ btnSubmit.addEventListener('click', async () => {
   try {
     const base64 = await fileToBase64(selectedFile);
     const esHarina = currentItem.item === 'MATERIA PRIMA' && document.getElementById('btnHarinaS').classList.contains('selected');
-    const payload = { fecha: dateStr, hora: timeStr, item: currentItem.item, categoria: currentItem.categoria, tipo: currentItem.tipo, subTipo: currentItem.subTipo, area: areaFinal, prorrateo: prorrateoData, tipoMonto: tipoMonto || 'bruto', esHarina, monto: monto || '', fileName: selectedFile.name, mimeType: selectedFile.type, imageData: base64, observacion: obs };
+    const fechaPagoVal = document.getElementById('fechaPago').value || '';
+    const payload = { fecha: dateStr, hora: timeStr, item: currentItem.item, categoria: currentItem.categoria, tipo: currentItem.tipo, subTipo: currentItem.subTipo, area: areaFinal, prorrateo: prorrateoData, tipoMonto: tipoMonto || 'bruto', esHarina, monto: monto || '', formaPago: formaPago, fechaPago: fechaPagoVal, fileName: selectedFile.name, mimeType: selectedFile.type, imageData: base64, observacion: obs };
     const response = await fetch(BACKEND_URL, { method: 'POST', body: JSON.stringify(payload) });
     const result = await response.json();
     if (result.status === 'ok') {
@@ -730,8 +780,14 @@ document.getElementById('btnNew').addEventListener('click', () => {
   document.getElementById('cardHarina').classList.add('hidden');
   document.getElementById('cardTipoMonto').classList.add('hidden');
   document.getElementById('cardMonto').classList.add('hidden');
+  document.getElementById('cardFormaPago').classList.add('hidden');
+  document.getElementById('cardFechaPago').classList.add('hidden');
   document.getElementById('btnNeto').classList.remove('selected');
   document.getElementById('btnBruto').classList.remove('selected');
+  document.getElementById('btnContado').classList.add('selected');
+  document.getElementById('btnTarjeta').classList.remove('selected');
+  document.getElementById('btnCredProv').classList.remove('selected');
+  formaPago = 'contado';
   document.getElementById('btnHarinaNo').classList.add('selected');
   document.getElementById('btnHarinaS').classList.remove('selected');
   areaGrid.querySelectorAll('.area-btn').forEach(b => b.classList.remove('selected'));
