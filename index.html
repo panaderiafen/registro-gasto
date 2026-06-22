@@ -1192,8 +1192,11 @@ function renderAnalisis(gastos, mes, anio) {
   const maxEvol = Math.max(...mesesOrden.map(k=>porMes[k]),1);
   document.getElementById('anEvolucion').innerHTML = mesesOrden.length
     ? mesesOrden.map(k=>{
-        const [y,m]=k.split('-');
-        const label=`${MESES[parseInt(m)-1].slice(0,3)} ${y}`;
+        const parts=k.split('-');
+        const y=parts[0]||'';
+        const m=parts[1]||'01';
+        const mesIdx=parseInt(m)-1;
+        const label=`${(MESES[mesIdx]||'?').slice(0,3)} ${y}`;
         const v=porMes[k];
         const esMesActual = k===`${anio}-${mesStr}`;
         return `<div class="evol-row">
