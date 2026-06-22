@@ -219,15 +219,23 @@
 
   <!-- PRORRATEO -->
   <div class="card hidden" id="cardProrrateo">
-    <label>Distribución por área</label>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <label style="margin:0;">Distribución por área</label>
+      <button type="button" onclick="sugerirProrrateoRegistro()" style="font-size:11px;padding:5px 10px;background:#e8f0fe;color:#003a79;border:1px solid #003a79;border-radius:6px;font-weight:600;cursor:pointer;">✨ Sugerir por ventas</button>
+    </div>
+    <div id="sugerenciaRegistro" style="display:none;font-size:12px;color:#2980b9;margin-bottom:8px;padding:6px 10px;background:#e8f4fd;border-radius:6px;"></div>
     <div class="prorrateo-section">
       <div class="prorrateo-row">
         <select id="area1"><option value="">— Área 1 —</option><option>BOL</option><option>PAN</option><option>CAF</option><option>PAS</option><option>ADMIN</option><option>VENTAS</option></select>
-        <input type="number" id="pct1" placeholder="%" min="1" max="99"/>
+        <input type="number" id="pct1" placeholder="%" min="1" max="100"/>
       </div>
       <div class="prorrateo-row">
         <select id="area2"><option value="">— Área 2 —</option><option>BOL</option><option>PAN</option><option>CAF</option><option>PAS</option><option>ADMIN</option><option>VENTAS</option></select>
-        <input type="number" id="pct2" placeholder="%" min="1" max="99"/>
+        <input type="number" id="pct2" placeholder="%" min="1" max="100"/>
+      </div>
+      <div class="prorrateo-row">
+        <select id="area3"><option value="">— Área 3 (opcional) —</option><option>BOL</option><option>PAN</option><option>CAF</option><option>PAS</option><option>ADMIN</option><option>VENTAS</option></select>
+        <input type="number" id="pct3" placeholder="%" min="1" max="100"/>
       </div>
       <div class="prorrateo-hint" id="prorrateoHint">Los porcentajes deben sumar 100%</div>
     </div>
@@ -527,6 +535,27 @@
           <option>PAS</option><option>ADMIN</option><option>VENTAS</option>
         </select>
       </div>
+      <!-- Prorrateo si es PRORRATEADO -->
+      <div id="obligProrrateoSelector" class="hidden" style="margin-top:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <label style="margin:0;">Distribución por área</label>
+          <button type="button" onclick="sugerirProrrateo()" style="font-size:11px;padding:5px 10px;background:#e8f0fe;color:#003a79;border:1px solid #003a79;border-radius:6px;font-weight:600;cursor:pointer;">✨ Sugerir por ventas</button>
+        </div>
+        <div id="sugerenciaProrrateo" style="display:none;font-size:12px;color:#2980b9;margin-bottom:8px;padding:6px 10px;background:#e8f4fd;border-radius:6px;"></div>
+        <div class="prorrateo-row">
+          <select id="obligPArea1"><option value="">— Área 1 —</option><option>BOL</option><option>PAN</option><option>CAF</option><option>PAS</option><option>ADMIN</option><option>VENTAS</option></select>
+          <input type="number" id="obligPPct1" placeholder="%" min="1" max="100"/>
+        </div>
+        <div class="prorrateo-row">
+          <select id="obligPArea2"><option value="">— Área 2 —</option><option>BOL</option><option>PAN</option><option>CAF</option><option>PAS</option><option>ADMIN</option><option>VENTAS</option></select>
+          <input type="number" id="obligPPct2" placeholder="%" min="1" max="100"/>
+        </div>
+        <div class="prorrateo-row">
+          <select id="obligPArea3"><option value="">— Área 3 (opcional) —</option><option>BOL</option><option>PAN</option><option>CAF</option><option>PAS</option><option>ADMIN</option><option>VENTAS</option></select>
+          <input type="number" id="obligPPct3" placeholder="%" min="1" max="100"/>
+        </div>
+        <div id="obligProrrateoHint" style="font-size:12px;color:#888;margin-top:4px;">Los porcentajes deben sumar 100%</div>
+      </div>
     </div>
     <div class="modal-field">
       <label>Tipo de frecuencia</label>
@@ -801,7 +830,7 @@ itemSelect.addEventListener('change', () => {
   const val = itemSelect.value;
   selectedArea = null; tipoMonto = null;
   areaGrid.querySelectorAll('.area-btn').forEach(b => b.classList.remove('selected'));
-  ['pct1','pct2','area1','area2'].forEach(id => document.getElementById(id).value = '');
+  ['pct1','pct2','pct3','area1','area2','area3'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('btnNeto').classList.remove('selected');
   document.getElementById('btnBruto').classList.remove('selected');
   document.getElementById('cardTipoMonto').classList.add('hidden');
@@ -809,6 +838,7 @@ itemSelect.addEventListener('change', () => {
   document.getElementById('cardFormaPago').classList.add('hidden');
   document.getElementById('cardFechaPago').classList.add('hidden');
   document.getElementById('monto').value = '';
+  document.getElementById('sugerenciaRegistro').style.display = 'none';
   formaPago = 'contado';
 
   if (!val) {
@@ -854,18 +884,23 @@ areaGrid.querySelectorAll('.area-btn').forEach(btn => {
 function validarProrrateo() {
   const p1 = parseInt(document.getElementById('pct1').value)||0;
   const p2 = parseInt(document.getElementById('pct2').value)||0;
+  const p3 = parseInt(document.getElementById('pct3').value)||0;
   const a1 = document.getElementById('area1').value;
   const a2 = document.getElementById('area2').value;
+  const a3 = document.getElementById('area3').value;
   const hint = document.getElementById('prorrateoHint');
-  const suma = p1 + p2;
+  // área 3 es opcional — solo validar si tiene algo
+  const tieneArea3 = a3 || p3;
+  const suma = p1 + p2 + (tieneArea3 ? p3 : 0);
   if (a1 && a2 && p1 && p2) {
+    if (tieneArea3 && (!a3 || !p3)) { hint.textContent = 'Completa área 3 o déjala vacía'; hint.className = 'prorrateo-hint error'; return false; }
     if (suma === 100) { hint.textContent = '✓ Los porcentajes suman 100%'; hint.className = 'prorrateo-hint'; return true; }
     else { hint.textContent = `Los porcentajes suman ${suma}%, deben sumar 100%`; hint.className = 'prorrateo-hint error'; return false; }
   }
   hint.textContent = 'Los porcentajes deben sumar 100%'; hint.className = 'prorrateo-hint'; return false;
 }
 
-['area1','area2','pct1','pct2'].forEach(id => {
+['area1','area2','area3','pct1','pct2','pct3'].forEach(id => {
   document.getElementById(id).addEventListener('change', () => { validarProrrateo(); checkReady(); });
   document.getElementById(id).addEventListener('input', () => { validarProrrateo(); checkReady(); });
 });
@@ -922,7 +957,8 @@ btnSubmit.addEventListener('click', async () => {
   if (currentItem.area === 'PRORRATEADO') {
     const a1 = document.getElementById('area1').value, a2 = document.getElementById('area2').value;
     const p1 = document.getElementById('pct1').value, p2 = document.getElementById('pct2').value;
-    areaFinal = 'PRORRATEADO'; prorrateoData = { area1: a1, pct1: p1, area2: a2, pct2: p2 };
+    const a3 = document.getElementById('area3').value, p3 = document.getElementById('pct3').value;
+    areaFinal = 'PRORRATEADO'; prorrateoData = { area1: a1, pct1: p1, area2: a2, pct2: p2, area3: a3, pct3: p3 };
   }
   btnSubmit.disabled = true; btnSubmit.innerHTML = '⏳ Enviando...';
   try {
@@ -961,7 +997,7 @@ document.getElementById('btnNew').addEventListener('click', () => {
   document.getElementById('btnHarinaNo').classList.add('selected');
   document.getElementById('btnHarinaS').classList.remove('selected');
   areaGrid.querySelectorAll('.area-btn').forEach(b => b.classList.remove('selected'));
-  ['pct1','pct2','area1','area2','monto','observacion'].forEach(id => document.getElementById(id).value = '');
+  ['pct1','pct2','pct3','area1','area2','area3','monto','observacion'].forEach(id => document.getElementById(id).value = '');
   uploadZone.classList.remove('has-file');
   uploadText.textContent = 'Selecciona una opción';
   document.getElementById('uploadIcon').textContent = '📷';
@@ -1206,6 +1242,12 @@ async function confirmarPago() {
         tipo: o ? (o.tipo || '') : '',
         subTipo: o ? (o.subTipo || '') : '',
         area: o ? (o.area || 'ADMIN') : 'ADMIN',
+        pArea1: o ? (o.pArea1||'') : '',
+        pPct1: o ? (o.pPct1||'') : '',
+        pArea2: o ? (o.pArea2||'') : '',
+        pPct2: o ? (o.pPct2||'') : '',
+        pArea3: o ? (o.pArea3||'') : '',
+        pPct3: o ? (o.pPct3||'') : '',
         tipoMonto: 'bruto',
         montoNeto: Math.round(parseInt(monto) / 1.19),
         montoFinal: parseInt(monto),
@@ -1237,15 +1279,62 @@ function resetModalPago() {
 }
 
 // Poblar selector de ítems en modal obligación
+async function sugerirProrrateoRegistro() {
+  const sug = document.getElementById('sugerenciaRegistro');
+  sug.style.display = 'block';
+  sug.textContent = '⏳ Consultando ventas del mes anterior...';
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getVentasPorArea' }) });
+    const data = await r.json();
+    if (!data.ok || !data.areas || !data.areas.length) { sug.textContent = '⚠️ No se pudieron obtener las ventas'; return; }
+    const top = data.areas.slice(0,3);
+    document.getElementById('area1').value = top[0]?.area||'';
+    document.getElementById('pct1').value = top[0]?.pct||'';
+    document.getElementById('area2').value = top[1]?.area||'';
+    document.getElementById('pct2').value = top[1]?.pct||'';
+    document.getElementById('area3').value = top[2]?.area||'';
+    document.getElementById('pct3').value = top[2]?.pct||'';
+    sug.textContent = `✅ Sugerencia basada en ventas de ${data.mes}: ${top.map(a=>`${a.area} ${a.pct}%`).join(' · ')}`;
+    validarProrrateo(); checkReady();
+  } catch(e) { sug.textContent = '⚠️ Error de conexión'; }
+}
+
+async function sugerirProrrateo() {
+  const sug = document.getElementById('sugerenciaProrrateo');
+  sug.style.display = 'block';
+  sug.textContent = '⏳ Consultando ventas del mes anterior...';
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getVentasPorArea' }) });
+    const data = await r.json();
+    if (!data.ok || !data.areas) { sug.textContent = '⚠️ No se pudieron obtener las ventas'; return; }
+    const areas = data.areas; // [{area, total, pct}]
+    if (!areas.length) { sug.textContent = '⚠️ Sin ventas registradas el mes anterior'; return; }
+    // Rellenar hasta 3 áreas
+    const top = areas.slice(0,3);
+    document.getElementById('obligPArea1').value = top[0]?.area||'';
+    document.getElementById('obligPPct1').value = top[0]?.pct||'';
+    document.getElementById('obligPArea2').value = top[1]?.area||'';
+    document.getElementById('obligPPct2').value = top[1]?.pct||'';
+    document.getElementById('obligPArea3').value = top[2]?.area||'';
+    document.getElementById('obligPPct3').value = top[2]?.pct||'';
+    sug.textContent = `✅ Sugerencia basada en ventas de ${data.mes}: ${top.map(a=>`${a.area} ${a.pct}%`).join(' · ')}`;
+  } catch(e) { sug.textContent = '⚠️ Error de conexión'; }
+}
+
 function onObligItemChange() {
   const val = document.getElementById('obligItem').value;
-  if (!val) { document.getElementById('obligInfoGrid').classList.add('hidden'); return; }
+  if (!val) {
+    document.getElementById('obligInfoGrid').classList.add('hidden');
+    document.getElementById('obligAreaSelector').classList.add('hidden');
+    document.getElementById('obligProrrateoSelector').classList.add('hidden');
+    return;
+  }
   const item = ITEMS.find(i => i.item === val);
   document.getElementById('obligInfoGrid').classList.remove('hidden');
   document.getElementById('obligAreaInfo').textContent = item.area;
   document.getElementById('obligCatInfo').textContent = item.categoria;
-  const needsArea = item.area === 'SELECCIONAR' || item.area === 'PRORRATEADO';
-  document.getElementById('obligAreaSelector').classList.toggle('hidden', !needsArea);
+  document.getElementById('obligAreaSelector').classList.toggle('hidden', item.area !== 'SELECCIONAR');
+  document.getElementById('obligProrrateoSelector').classList.toggle('hidden', item.area !== 'PRORRATEADO');
 }
 
 function abrirModalObligacion(id) {
@@ -1260,6 +1349,14 @@ function abrirModalObligacion(id) {
   document.getElementById('obligMonto').value = o ? (o.montoEstimado || '') : '';
   document.getElementById('obligObs').value = o ? (o.obs || '') : '';
   document.getElementById('obligAreaEsp').value = o ? (o.areaEsp||'') : '';
+  document.getElementById('obligPArea1').value = o ? (o.pArea1||'') : '';
+  document.getElementById('obligPPct1').value = o ? (o.pPct1||'') : '';
+  document.getElementById('obligPArea2').value = o ? (o.pArea2||'') : '';
+  document.getElementById('obligPPct2').value = o ? (o.pPct2||'') : '';
+  document.getElementById('obligPArea3').value = o ? (o.pArea3||'') : '';
+  document.getElementById('obligPPct3').value = o ? (o.pPct3||'') : '';
+  document.getElementById('sugerenciaProrrateo').style.display = 'none';
+  document.getElementById('obligProrrateoSelector').classList.add('hidden');
   document.getElementById('btnEliminarOblig').classList.toggle('hidden', !o);
   onObligItemChange();
   mostrarCamposFrecuencia();
@@ -1280,20 +1377,39 @@ async function guardarObligacion() {
   const fechaEsp = document.getElementById('obligFechaEsp').value;
   const montoEstimado = document.getElementById('obligMonto').value;
   const obs = document.getElementById('obligObs').value.trim();
-  const areaEsp = document.getElementById('obligAreaEsp').value;
-
   if (!nombre || !frecuencia) { alert('Completa el nombre y la frecuencia'); return; }
   if (frecuencia === 'mensual_dia' && !dia) { alert('Ingresa el día del mes'); return; }
   if (frecuencia === 'variable' && !fechaEsp) { alert('Ingresa la fecha de vencimiento'); return; }
 
-  // Obtener datos del ítem si fue seleccionado
   const itemData = item ? ITEMS.find(i => i.item === item) : null;
-  const area = itemData ? (itemData.area === 'SELECCIONAR' || itemData.area === 'PRORRATEADO' ? areaEsp : itemData.area) : '';
   const categoria = itemData ? itemData.categoria : '';
   const tipo = itemData ? itemData.tipo : '';
   const subTipo = itemData ? itemData.subTipo : '';
 
-  const payload = { action: 'saveObligacion', id: obligEditId, nombre, item, frecuencia, dia, fechaEsp, montoEstimado, obs, area, areaEsp, categoria, tipo, subTipo };
+  const areaEsp = document.getElementById('obligAreaEsp').value;
+  const pArea1 = document.getElementById('obligPArea1').value;
+  const pPct1 = document.getElementById('obligPPct1').value;
+  const pArea2 = document.getElementById('obligPArea2').value;
+  const pPct2 = document.getElementById('obligPPct2').value;
+  const pArea3 = document.getElementById('obligPArea3').value;
+  const pPct3 = document.getElementById('obligPPct3').value;
+
+  // Validar prorrateo si aplica
+  if (itemData && itemData.area === 'PRORRATEADO') {
+    const tieneArea3 = pArea3 || pPct3;
+    const suma = (parseInt(pPct1)||0) + (parseInt(pPct2)||0) + (tieneArea3 ? (parseInt(pPct3)||0) : 0);
+    if (!pArea1 || !pArea2 || !pPct1 || !pPct2) { alert('Completa al menos 2 áreas de distribución'); return; }
+    if (tieneArea3 && (!pArea3 || !pPct3)) { alert('Completa el área 3 o déjala vacía'); return; }
+    if (suma !== 100) { alert(`Los porcentajes suman ${suma}%, deben sumar 100%`); return; }
+  }
+
+  const area = itemData ? (
+    itemData.area === 'SELECCIONAR' ? areaEsp :
+    itemData.area === 'PRORRATEADO' ? 'PRORRATEADO' :
+    itemData.area
+  ) : '';
+
+  const payload = { action: 'saveObligacion', id: obligEditId, nombre, item, frecuencia, dia, fechaEsp, montoEstimado, obs, area, areaEsp, pArea1, pPct1, pArea2, pPct2, pArea3, pPct3, categoria, tipo, subTipo };
   try {
     const r = await fetch(BACKEND_URL, { method: 'POST', body: JSON.stringify(payload) });
     const data = await r.json();
