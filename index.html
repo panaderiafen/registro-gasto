@@ -1083,8 +1083,8 @@ document.getElementById('btnNew').addEventListener('click', () => {
   document.getElementById('btnCredProv').classList.remove('selected');
   document.getElementById('fechaCompra').value = '';
   formaPago = 'contado';
+  document.getElementById('btnHarinaNo') && document.getElementById('btnHarinaNo').classList.add('selected');
   document.getElementById('btnHarinaS').classList.remove('selected');
-  areaGrid.querySelectorAll('.area-btn').forEach(b => b.classList.remove('selected'));
   ['pct1','pct2','pct3','area1','area2','area3','monto','observacion'].forEach(id => document.getElementById(id).value = '');
   uploadZone.classList.remove('has-file');
   uploadText.textContent = 'Selecciona una opción';
