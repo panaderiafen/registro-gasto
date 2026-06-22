@@ -774,6 +774,14 @@ function selFormaPago(tipo) {
   checkReady();
 }
 
+// ─── ESTADO REGISTRO ──────────────────────────
+let selectedArea = null;
+let selectedFile = null;
+let records = [];
+let currentItem = null;
+let tipoMonto = null;
+let formaPago = 'contado';
+
 const itemSelect = document.getElementById('itemGasto');
 const infoGrid = document.getElementById('infoGrid');
 const cardSeleccionarArea = document.getElementById('cardSeleccionarArea');
