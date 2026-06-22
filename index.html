@@ -204,17 +204,12 @@
     </div>
   </div>
 
-  <!-- ÁREA SELECCIONAR -->
+  <!-- ÁREA SELECCIONAR — múltiple con monto -->
   <div class="card hidden" id="cardSeleccionarArea">
-    <label>Selecciona el área de gasto</label>
-    <div class="area-grid" id="areaGrid">
-      <div class="area-btn" data-area="BOL">BOL</div>
-      <div class="area-btn" data-area="PAN">PAN</div>
-      <div class="area-btn" data-area="CAF">CAF</div>
-      <div class="area-btn" data-area="PAS">PAS</div>
-      <div class="area-btn" data-area="ADMIN">ADMIN</div>
-      <div class="area-btn" data-area="VENTAS">VENTAS</div>
-    </div>
+    <label>Distribución por área <span style="font-weight:400;color:#aaa;font-size:12px;">(monto en $)</span></label>
+    <div id="selAreaFilas"></div>
+    <button type="button" onclick="agregarFilaArea()" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:1.5px dashed #003a79;border-radius:8px;color:#003a79;font-size:13px;font-weight:600;cursor:pointer;">+ Agregar área</button>
+    <div id="selAreaHint" style="font-size:12px;color:#888;margin-top:6px;"></div>
   </div>
 
   <!-- PRORRATEO -->
@@ -786,7 +781,6 @@ const itemSelect = document.getElementById('itemGasto');
 const infoGrid = document.getElementById('infoGrid');
 const cardSeleccionarArea = document.getElementById('cardSeleccionarArea');
 const cardProrrateo = document.getElementById('cardProrrateo');
-const areaGrid = document.getElementById('areaGrid');
 const uploadZone = document.getElementById('uploadZone');
 const previewImg = document.getElementById('previewImg');
 const uploadText = document.getElementById('uploadText');
@@ -795,6 +789,60 @@ const formSection = document.getElementById('formSection');
 const successScreen = document.getElementById('successScreen');
 const recordsList = document.getElementById('recordsList');
 const countBadge = document.getElementById('countBadge');
+
+// ─── MULTI-ÁREA CON MONTO ──────────────────────
+const AREAS_OPCIONES = ['BOL','PAN','CAF','PAS','ADMIN','VENTAS'];
+
+function agregarFilaArea(area='', monto='') {
+  const cont = document.getElementById('selAreaFilas');
+  const idx = cont.children.length;
+  const div = document.createElement('div');
+  div.className = 'prorrateo-row';
+  div.style.marginBottom = '8px';
+  div.innerHTML = `
+    <select class="sel-area-multi" onchange="recalcularSelArea()">
+      <option value="">— Área —</option>
+      ${AREAS_OPCIONES.map(a=>`<option value="${a}" ${a===area?'selected':''}>${a}</option>`).join('')}
+    </select>
+    <div style="display:flex;gap:4px;align-items:center;">
+      <span style="font-size:13px;font-weight:600;color:#555;">$</span>
+      <input type="number" class="inp-area-monto" placeholder="0" min="0" value="${monto}" style="width:90px;text-align:right;" oninput="recalcularSelArea()"/>
+      ${idx > 0 ? `<button type="button" onclick="this.parentElement.parentElement.remove();recalcularSelArea();" style="background:none;border:none;color:#e74c3c;font-size:18px;cursor:pointer;padding:0 4px;">×</button>` : ''}
+    </div>`;
+  cont.appendChild(div);
+  recalcularSelArea();
+}
+
+function recalcularSelArea() {
+  const filas = document.querySelectorAll('#selAreaFilas .prorrateo-row');
+  let total = 0;
+  filas.forEach(f => { total += parseFloat(f.querySelector('.inp-area-monto').value)||0; });
+  const hint = document.getElementById('selAreaHint');
+  if (total > 0) {
+    hint.textContent = `Total: $${total.toLocaleString('es-CL')}`;
+    hint.style.color = '#003a79';
+  } else {
+    hint.textContent = '';
+  }
+  checkReady();
+}
+
+function getSelAreaData() {
+  const filas = document.querySelectorAll('#selAreaFilas .prorrateo-row');
+  const result = [];
+  filas.forEach(f => {
+    const area = f.querySelector('.sel-area-multi').value;
+    const monto = parseFloat(f.querySelector('.inp-area-monto').value)||0;
+    if (area && monto > 0) result.push({ area, monto });
+  });
+  return result;
+}
+
+function resetSelArea() {
+  document.getElementById('selAreaFilas').innerHTML = '';
+  document.getElementById('selAreaHint').textContent = '';
+  agregarFilaArea();
+}
 
 function handleFileSelect(file) {
   if (!file) return;
@@ -824,20 +872,29 @@ function selTipoMonto(tipo) {
   tipoMonto = tipo;
   document.getElementById('btnNeto').classList.toggle('selected', tipo === 'neto');
   document.getElementById('btnBruto').classList.toggle('selected', tipo === 'bruto');
-  document.getElementById('cardMonto').classList.remove('hidden');
   document.getElementById('cardFormaPago').classList.remove('hidden');
-  const esH = currentItem && currentItem.item === 'MATERIA PRIMA' && document.getElementById('btnHarinaS').classList.contains('selected');
-  const pct = esH ? '31%' : '19%';
-  document.getElementById('labelMonto').innerHTML = tipo === 'neto'
-    ? `Monto neto <span style="font-weight:400;color:#aaa">(se calculará IVA ${pct})</span>`
-    : `Monto bruto <span style="font-weight:400;color:#aaa">(con IVA incluido)</span>`;
+  // Para SELECCIONAR el monto se ingresa por área, no globalmente
+  if (currentItem && currentItem.area === 'SELECCIONAR') {
+    document.getElementById('cardMonto').classList.add('hidden');
+    // Actualizar label de monto en cada fila de área
+    const esH = currentItem.item === 'MATERIA PRIMA' && document.getElementById('btnHarinaS').classList.contains('selected');
+    const labelTipo = tipo === 'neto' ? 'Neto $' : 'Bruto $';
+    document.querySelectorAll('#selAreaFilas .inp-area-monto').forEach(inp => inp.placeholder = labelTipo);
+  } else {
+    document.getElementById('cardMonto').classList.remove('hidden');
+    const esH = currentItem && currentItem.item === 'MATERIA PRIMA' && document.getElementById('btnHarinaS').classList.contains('selected');
+    const pct = esH ? '31%' : '19%';
+    document.getElementById('labelMonto').innerHTML = tipo === 'neto'
+      ? `Monto neto <span style="font-weight:400;color:#aaa">(se calculará IVA ${pct})</span>`
+      : `Monto bruto <span style="font-weight:400;color:#aaa">(con IVA incluido)</span>`;
+  }
   checkReady();
 }
 
 itemSelect.addEventListener('change', () => {
   const val = itemSelect.value;
   selectedArea = null; tipoMonto = null;
-  areaGrid.querySelectorAll('.area-btn').forEach(b => b.classList.remove('selected'));
+  resetSelArea();
   ['pct1','pct2','pct3','area1','area2','area3'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('btnNeto').classList.remove('selected');
   document.getElementById('btnBruto').classList.remove('selected');
@@ -870,6 +927,7 @@ itemSelect.addEventListener('change', () => {
 
   if (currentItem.area === 'SELECCIONAR') {
     cardSeleccionarArea.classList.remove('hidden'); cardProrrateo.classList.add('hidden');
+    resetSelArea();
   } else if (currentItem.area === 'PRORRATEADO') {
     cardProrrateo.classList.remove('hidden'); cardSeleccionarArea.classList.add('hidden');
   } else {
@@ -878,15 +936,6 @@ itemSelect.addEventListener('change', () => {
   }
   document.getElementById('cardTipoMonto').classList.remove('hidden');
   checkReady();
-});
-
-areaGrid.querySelectorAll('.area-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    areaGrid.querySelectorAll('.area-btn').forEach(b => b.classList.remove('selected'));
-    btn.classList.add('selected');
-    selectedArea = btn.dataset.area;
-    checkReady();
-  });
 });
 
 function validarProrrateo() {
@@ -947,9 +996,13 @@ async function extractMonto(imageData) {
 function checkReady() {
   if (!currentItem || !selectedFile) { btnSubmit.disabled = true; return; }
   if (!tipoMonto) { btnSubmit.disabled = true; return; }
-  const monto = document.getElementById('monto').value.trim();
-  if (!monto || parseFloat(monto) <= 0) { btnSubmit.disabled = true; return; }
-  if (currentItem.area === 'SELECCIONAR' && !selectedArea) { btnSubmit.disabled = true; return; }
+  if (currentItem.area === 'SELECCIONAR') {
+    const areas = getSelAreaData();
+    if (!areas.length) { btnSubmit.disabled = true; return; }
+  } else {
+    const monto = document.getElementById('monto').value.trim();
+    if (!monto || parseFloat(monto) <= 0) { btnSubmit.disabled = true; return; }
+  }
   if (currentItem.area === 'PRORRATEADO' && !validarProrrateo()) { btnSubmit.disabled = true; return; }
   btnSubmit.disabled = false;
 }
@@ -960,24 +1013,33 @@ btnSubmit.addEventListener('click', async () => {
   const now = new Date();
   const dateStr = now.toLocaleDateString('es-CL', {day:'2-digit', month:'2-digit', year:'numeric'});
   const timeStr = now.toLocaleTimeString('es-CL', {hour:'2-digit', minute:'2-digit'});
-  let areaFinal = selectedArea || currentItem.area;
+  let areaFinal = currentItem.area;
   let prorrateoData = null;
+  let multiAreaData = null;
+
   if (currentItem.area === 'PRORRATEADO') {
     const a1 = document.getElementById('area1').value, a2 = document.getElementById('area2').value;
     const p1 = document.getElementById('pct1').value, p2 = document.getElementById('pct2').value;
     const a3 = document.getElementById('area3').value, p3 = document.getElementById('pct3').value;
     areaFinal = 'PRORRATEADO'; prorrateoData = { area1: a1, pct1: p1, area2: a2, pct2: p2, area3: a3, pct3: p3 };
+  } else if (currentItem.area === 'SELECCIONAR') {
+    multiAreaData = getSelAreaData();
+    areaFinal = multiAreaData.length === 1 ? multiAreaData[0].area : 'MULTI';
   }
+
   btnSubmit.disabled = true; btnSubmit.innerHTML = '⏳ Enviando...';
   try {
     const base64 = await fileToBase64(selectedFile);
     const esHarina = currentItem.item === 'MATERIA PRIMA' && document.getElementById('btnHarinaS').classList.contains('selected');
     const fechaPagoVal = document.getElementById('fechaPago').value || '';
-    const payload = { fecha: dateStr, hora: timeStr, item: currentItem.item, categoria: currentItem.categoria, tipo: currentItem.tipo, subTipo: currentItem.subTipo, area: areaFinal, prorrateo: prorrateoData, tipoMonto: tipoMonto || 'bruto', esHarina, monto: monto || '', formaPago: formaPago, fechaPago: fechaPagoVal, fileName: selectedFile.name, mimeType: selectedFile.type, imageData: base64, observacion: obs };
+    const montoFinal = currentItem.area === 'SELECCIONAR'
+      ? String(multiAreaData.reduce((s,a)=>s+a.monto,0))
+      : monto || '';
+    const payload = { fecha: dateStr, hora: timeStr, item: currentItem.item, categoria: currentItem.categoria, tipo: currentItem.tipo, subTipo: currentItem.subTipo, area: areaFinal, prorrateo: prorrateoData, multiArea: multiAreaData, tipoMonto: tipoMonto || 'bruto', esHarina, monto: montoFinal, formaPago: formaPago, fechaPago: fechaPagoVal, fileName: selectedFile.name, mimeType: selectedFile.type, imageData: base64, observacion: obs };
     const response = await fetch(BACKEND_URL, { method: 'POST', body: JSON.stringify(payload) });
     const result = await response.json();
     if (result.status === 'ok') {
-      records.push({ item: currentItem.item, area: areaFinal, thumb: previewImg.src, date: dateStr, time: timeStr, monto });
+      records.push({ item: currentItem.item, area: areaFinal, thumb: previewImg.src, date: dateStr, time: timeStr, monto: montoFinal });
       renderRecords(); formSection.style.display = 'none'; successScreen.style.display = 'block';
     } else { alert('Error al guardar: ' + (result.message || 'Error desconocido')); btnSubmit.disabled = false; btnSubmit.innerHTML = '✓ Registrar gasto'; }
   } catch(err) { alert('Error de conexión. Revisa tu internet e intenta de nuevo.'); btnSubmit.disabled = false; btnSubmit.innerHTML = '✓ Registrar gasto'; }
@@ -991,6 +1053,7 @@ document.getElementById('btnNew').addEventListener('click', () => {
   currentItem = null; selectedArea = null; selectedFile = null; tipoMonto = null;
   itemSelect.value = ''; infoGrid.style.display = 'none';
   cardSeleccionarArea.classList.add('hidden'); cardProrrateo.classList.add('hidden');
+  resetSelArea();
   document.getElementById('cardHarina').classList.add('hidden');
   document.getElementById('cardTipoMonto').classList.add('hidden');
   document.getElementById('cardMonto').classList.add('hidden');
