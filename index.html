@@ -254,6 +254,12 @@
     </div>
   </div>
 
+  <!-- FECHA DE COMPRA -->
+  <div class="card hidden" id="cardFechaCompra">
+    <label>Fecha de compra</label>
+    <input type="date" id="fechaCompra" style="width:100%;padding:12px 14px;border:1px solid #ddd;border-radius:8px;font-size:15px;color:#222;"/>
+  </div>
+
   <!-- FORMA DE PAGO -->
   <div class="card hidden" id="cardFormaPago">
     <label>Forma de pago</label>
@@ -872,6 +878,13 @@ function selTipoMonto(tipo) {
   document.getElementById('btnNeto').classList.toggle('selected', tipo === 'neto');
   document.getElementById('btnBruto').classList.toggle('selected', tipo === 'bruto');
   document.getElementById('cardFormaPago').classList.remove('hidden');
+  document.getElementById('cardFechaCompra').classList.remove('hidden');
+  // Setear fecha de hoy si está vacía
+  const fcInput = document.getElementById('fechaCompra');
+  if (!fcInput.value) {
+    const hoyD = new Date();
+    fcInput.value = `${hoyD.getFullYear()}-${String(hoyD.getMonth()+1).padStart(2,'0')}-${String(hoyD.getDate()).padStart(2,'0')}`;
+  }
   // Para SELECCIONAR el monto se ingresa por área, no globalmente
   if (currentItem && currentItem.area === 'SELECCIONAR') {
     document.getElementById('cardMonto').classList.add('hidden');
@@ -900,6 +913,7 @@ itemSelect.addEventListener('change', () => {
   document.getElementById('cardTipoMonto').classList.add('hidden');
   document.getElementById('cardMonto').classList.add('hidden');
   document.getElementById('cardFormaPago').classList.add('hidden');
+  document.getElementById('cardFechaCompra').classList.add('hidden');
   document.getElementById('cardFechaPago').classList.add('hidden');
   document.getElementById('monto').value = '';
   document.getElementById('sugerenciaRegistro').style.display = 'none';
@@ -1010,7 +1024,9 @@ btnSubmit.addEventListener('click', async () => {
   const obs = document.getElementById('observacion').value.trim();
   const monto = document.getElementById('monto').value.trim();
   const now = new Date();
-  const dateStr = now.toLocaleDateString('es-CL', {day:'2-digit', month:'2-digit', year:'numeric'});
+  const fcVal = document.getElementById('fechaCompra').value;
+  const fechaD = fcVal ? new Date(fcVal + 'T12:00:00') : now;
+  const dateStr = fechaD.toLocaleDateString('es-CL', {day:'2-digit', month:'2-digit', year:'numeric'});
   const timeStr = now.toLocaleTimeString('es-CL', {hour:'2-digit', minute:'2-digit'});
   let areaFinal = currentItem.area;
   let prorrateoData = null;
@@ -1058,13 +1074,14 @@ document.getElementById('btnNew').addEventListener('click', () => {
   document.getElementById('cardMonto').classList.add('hidden');
   document.getElementById('cardFormaPago').classList.add('hidden');
   document.getElementById('cardFechaPago').classList.add('hidden');
+  document.getElementById('cardFechaCompra').classList.add('hidden');
   document.getElementById('btnNeto').classList.remove('selected');
   document.getElementById('btnBruto').classList.remove('selected');
   document.getElementById('btnContado').classList.add('selected');
   document.getElementById('btnTarjeta').classList.remove('selected');
   document.getElementById('btnCredProv').classList.remove('selected');
+  document.getElementById('fechaCompra').value = '';
   formaPago = 'contado';
-  document.getElementById('btnHarinaNo').classList.add('selected');
   document.getElementById('btnHarinaS').classList.remove('selected');
   areaGrid.querySelectorAll('.area-btn').forEach(b => b.classList.remove('selected'));
   ['pct1','pct2','pct3','area1','area2','area3','monto','observacion'].forEach(id => document.getElementById(id).value = '');
