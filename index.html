@@ -173,6 +173,7 @@
     <div class="nav-tab active" onclick="showSection('registrar',this)">📝 Registrar</div>
     <div class="nav-tab" onclick="showSection('obligaciones',this)">📅 Obligaciones<span class="badge" id="badgeOblig"></span></div>
     <div class="nav-tab" onclick="showSection('analisis',this)">📊 Análisis</div>
+    <div class="nav-tab" onclick="showSection('items',this)">📋 Ítems</div>
   </div>
 </div>
 
@@ -390,6 +391,71 @@
 </div>
 </div>
 
+<!-- ===== SECCIÓN ÍTEMS ===== -->
+<div id="sec-items" class="section">
+<div class="container">
+  <button class="btn-agregar" onclick="abrirModalItem()">+ Agregar ítem</button>
+  <div id="itemsList"><div class="loading-text">Cargando ítems...</div></div>
+</div>
+</div>
+
+<!-- MODAL ITEM -->
+<div class="modal-overlay" id="modalItem">
+  <div class="modal">
+    <div class="modal-title" id="modalItemTitulo">Nuevo ítem</div>
+    <div class="modal-field">
+      <label>Nombre del ítem</label>
+      <input type="text" id="itemNombre" placeholder="Ej: GAS ENVASADO" style="text-transform:uppercase"/>
+    </div>
+    <div class="modal-field">
+      <label>Categoría</label>
+      <select id="itemCategoria">
+        <option value="">— Selecciona —</option>
+        <option value="FIJO">FIJO</option>
+        <option value="VARIABLE">VARIABLE</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Tipo</label>
+      <select id="itemTipo">
+        <option value="">— Selecciona —</option>
+        <option value="DIRECTO">DIRECTO</option>
+        <option value="INDIRECTO">INDIRECTO</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Sub Tipo</label>
+      <select id="itemSubTipo">
+        <option value="">— Selecciona —</option>
+        <option value="OPERATIVO">OPERATIVO</option>
+        <option value="INVERSIÓN">INVERSIÓN</option>
+        <option value="COMERCIAL">COMERCIAL</option>
+        <option value="FINANCIERO">FINANCIERO</option>
+        <option value="PASIVO">PASIVO</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Área</label>
+      <select id="itemArea">
+        <option value="">— Selecciona —</option>
+        <option value="BOL">BOL</option>
+        <option value="PAN">PAN</option>
+        <option value="CAF">CAF</option>
+        <option value="PAS">PAS</option>
+        <option value="ADMIN">ADMIN</option>
+        <option value="VENTAS">VENTAS</option>
+        <option value="PRORRATEADO">PRORRATEADO</option>
+        <option value="SELECCIONAR">SELECCIONAR</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancelar" onclick="cerrarModal('modalItem')">Cancelar</button>
+      <button class="btn-confirmar" onclick="guardarItem()">Guardar</button>
+    </div>
+    <button class="btn-eliminar hidden" id="btnEliminarItem" onclick="eliminarItem()">🗑 Eliminar este ítem</button>
+  </div>
+</div>
+
 <!-- MODAL PAGO -->
 <div class="modal-overlay" id="modalPago">
   <div class="modal">
@@ -521,10 +587,12 @@ function showSection(id, tab) {
   tab.classList.add('active');
   if (id === 'obligaciones') cargarObligaciones();
   if (id === 'analisis') cargarAnalisis();
+  if (id === 'items') renderItems();
 }
 
 // ─── ESTADO REGISTRO ──────────────────────────
-const ITEMS = [
+// ITEMS — dinámico desde Sheets (fallback hardcodeado)
+let ITEMS = [
   { item: "ARRIENDO SALA PRODUCCIÓN", categoria: "FIJO", tipo: "DIRECTO", subTipo: "OPERATIVO", area: "PRORRATEADO" },
   { item: "REMUNERACIONES PRODUCCIÓN", categoria: "FIJO", tipo: "DIRECTO", subTipo: "OPERATIVO", area: "SELECCIONAR" },
   { item: "LUZ AINAVILLO", categoria: "FIJO", tipo: "DIRECTO", subTipo: "OPERATIVO", area: "PRORRATEADO" },
@@ -564,7 +632,88 @@ const ITEMS = [
   { item: "IVA", categoria: "VARIABLE", tipo: "INDIRECTO", subTipo: "PASIVO", area: "ADMIN" }
 ];
 
-let selectedArea = null, selectedFile = null, records = [], currentItem = null, tipoMonto = null, formaPago = 'contado';
+async function cargarItems() {
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getItems' }) });
+    const data = await r.json();
+    if (data.items && data.items.length) ITEMS = data.items;
+  } catch(e) { /* usa fallback hardcodeado */ }
+  poblarSelectoresItem();
+}
+
+function poblarSelectoresItem() {
+  ['itemGasto','obligItem'].forEach(selId => {
+    const sel = document.getElementById(selId);
+    if (!sel) return;
+    const val = sel.value;
+    const placeholder = selId === 'itemGasto' ? '— Selecciona un ítem —' : '— Selecciona ítem —';
+    sel.innerHTML = `<option value="">${placeholder}</option>`;
+    ITEMS.forEach(i => {
+      const opt = document.createElement('option');
+      opt.value = i.item; opt.textContent = i.item;
+      sel.appendChild(opt);
+    });
+    if (val) sel.value = val;
+  });
+}
+
+// ─── GESTIÓN DE ÍTEMS ────────────────────────
+let itemEditNombre = null;
+
+function renderItems() {
+  const lista = document.getElementById('itemsList');
+  if (!ITEMS.length) { lista.innerHTML = '<div class="loading-text">No hay ítems registrados.</div>'; return; }
+  lista.innerHTML = '<div class="table-wrap"><table><thead><tr><th>Ítem</th><th>Categoría</th><th>Tipo</th><th>Área</th></tr></thead><tbody>' +
+    ITEMS.map(i => `<tr onclick="abrirModalItem('${i.item.replace(/'/g,"\\'")}')">
+      <td><strong>${i.item}</strong><br><small style="color:#888">${i.subTipo}</small></td>
+      <td>${i.categoria}</td>
+      <td>${i.tipo}</td>
+      <td>${i.area}</td>
+    </tr>`).join('') + '</tbody></table></div>';
+}
+
+function abrirModalItem(nombre) {
+  itemEditNombre = nombre || null;
+  const it = nombre ? ITEMS.find(i => i.item === nombre) : null;
+  document.getElementById('modalItemTitulo').textContent = it ? 'Editar ítem' : 'Nuevo ítem';
+  document.getElementById('itemNombre').value = it ? it.item : '';
+  document.getElementById('itemCategoria').value = it ? it.categoria : '';
+  document.getElementById('itemTipo').value = it ? it.tipo : '';
+  document.getElementById('itemSubTipo').value = it ? it.subTipo : '';
+  document.getElementById('itemArea').value = it ? it.area : '';
+  document.getElementById('btnEliminarItem').classList.toggle('hidden', !it);
+  document.getElementById('modalItem').classList.add('show');
+}
+
+async function guardarItem() {
+  const nombre = document.getElementById('itemNombre').value.trim().toUpperCase();
+  const categoria = document.getElementById('itemCategoria').value;
+  const tipo = document.getElementById('itemTipo').value;
+  const subTipo = document.getElementById('itemSubTipo').value;
+  const area = document.getElementById('itemArea').value;
+  if (!nombre || !categoria || !tipo || !subTipo || !area) { alert('Completa todos los campos'); return; }
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({
+      action: 'saveItem', nombreOriginal: itemEditNombre, nombre, categoria, tipo, subTipo, area
+    })});
+    const data = await r.json();
+    if (data.ok) {
+      cerrarModal('modalItem');
+      await cargarItems();
+      renderItems();
+    } else { alert('Error: ' + (data.error||'')); }
+  } catch(e) { alert('Error de conexión'); }
+}
+
+async function eliminarItem() {
+  if (!confirm(`¿Eliminar el ítem "${itemEditNombre}"?`)) return;
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'deleteItem', nombre: itemEditNombre })});
+    const data = await r.json();
+    if (data.ok) { cerrarModal('modalItem'); await cargarItems(); renderItems(); }
+    else { alert('Error: ' + (data.error||'')); }
+  } catch(e) { alert('Error de conexión'); }
+}
 
 function selFormaPago(tipo) {
   formaPago = tipo;
@@ -627,12 +776,6 @@ function handleFileSelect(file) {
 }
 document.getElementById('fileInputCam').addEventListener('change', e => handleFileSelect(e.target.files[0]));
 document.getElementById('fileInputGal').addEventListener('change', e => handleFileSelect(e.target.files[0]));
-
-ITEMS.forEach(i => {
-  const opt = document.createElement('option');
-  opt.value = i.item; opt.textContent = i.item;
-  itemSelect.appendChild(opt);
-});
 
 function selHarina(esH) {
   document.getElementById('btnHarinaNo').classList.toggle('selected', !esH);
@@ -1094,15 +1237,6 @@ function resetModalPago() {
 }
 
 // Poblar selector de ítems en modal obligación
-(function() {
-  const sel = document.getElementById('obligItem');
-  ITEMS.forEach(i => {
-    const opt = document.createElement('option');
-    opt.value = i.item; opt.textContent = i.item;
-    sel.appendChild(opt);
-  });
-})();
-
 function onObligItemChange() {
   const val = document.getElementById('obligItem').value;
   if (!val) { document.getElementById('obligInfoGrid').classList.add('hidden'); return; }
@@ -1231,6 +1365,7 @@ function mostrarAlertaDisruptiva(proximas) {
 
 // Al cargar la app — revisar alertas y mostrar modal disruptivo
 window.addEventListener('load', () => {
+  cargarItems();
   fetch(BACKEND_URL, { method: 'POST', body: JSON.stringify({ action: 'getObligaciones' }) })
     .then(r => r.json()).then(data => {
       obligaciones = data.obligaciones || [];
