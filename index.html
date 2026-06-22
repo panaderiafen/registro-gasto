@@ -436,6 +436,33 @@
       <input type="text" id="obligNombre" placeholder="Ej: Arriendo local"/>
     </div>
     <div class="modal-field">
+      <label>Ítem de gasto</label>
+      <select id="obligItem" onchange="onObligItemChange()">
+        <option value="">— Selecciona ítem —</option>
+      </select>
+    </div>
+    <div class="modal-field hidden" id="obligInfoGrid">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;">
+        <div style="background:#f8f9fa;border-radius:8px;padding:8px 10px;">
+          <div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;">Área</div>
+          <div style="font-size:13px;font-weight:700;color:#003a79;" id="obligAreaInfo">—</div>
+        </div>
+        <div style="background:#f8f9fa;border-radius:8px;padding:8px 10px;">
+          <div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;">Categoría</div>
+          <div style="font-size:13px;font-weight:700;color:#003a79;" id="obligCatInfo">—</div>
+        </div>
+      </div>
+      <!-- Selector de área si es SELECCIONAR -->
+      <div id="obligAreaSelector" class="hidden" style="margin-top:10px;">
+        <label style="margin-bottom:6px;">Selecciona el área</label>
+        <select id="obligAreaEsp" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
+          <option value="">— Área —</option>
+          <option>BOL</option><option>PAN</option><option>CAF</option>
+          <option>PAS</option><option>ADMIN</option><option>VENTAS</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-field">
       <label>Tipo de frecuencia</label>
       <select id="obligFrecuencia" onchange="mostrarCamposFrecuencia()">
         <option value="">— Selecciona —</option>
@@ -1014,6 +1041,10 @@ async function confirmarPago() {
     mimeType = pagoFile.type;
   }
 
+  // Obtener datos de la obligación para registrar en hoja principal
+  const o = obligaciones.find(x => x.id === obligPagoId);
+  const fechaFmt = fecha.split('-').reverse().join('/'); // yyyy-mm-dd → dd/mm/yyyy
+
   try {
     const r = await fetch(BACKEND_URL, { method: 'POST', body: JSON.stringify({
       action: 'registrarPago',
@@ -1021,7 +1052,25 @@ async function confirmarPago() {
       montoPago: monto,
       fechaPago: fecha,
       obsPago: obs,
-      imageData, fileName, mimeType
+      imageData, fileName, mimeType,
+      // Datos para registrar en hoja principal
+      registrarGasto: true,
+      gastoData: {
+        fecha: fechaFmt,
+        hora: new Date().toLocaleTimeString('es-CL', {hour:'2-digit', minute:'2-digit'}),
+        item: o ? (o.item || o.nombre) : '',
+        categoria: o ? (o.categoria || '') : '',
+        tipo: o ? (o.tipo || '') : '',
+        subTipo: o ? (o.subTipo || '') : '',
+        area: o ? (o.area || 'ADMIN') : 'ADMIN',
+        tipoMonto: 'bruto',
+        montoNeto: Math.round(parseInt(monto) / 1.19),
+        montoFinal: parseInt(monto),
+        esHarina: false,
+        formaPago: 'contado',
+        fechaPago: fecha,
+        observacion: obs || (o ? o.nombre : '')
+      }
     })});
     const data = await r.json();
     if (data.ok) {
@@ -1044,17 +1093,41 @@ function resetModalPago() {
   document.getElementById('pagoUploadBtns').style.display = 'grid';
 }
 
+// Poblar selector de ítems en modal obligación
+(function() {
+  const sel = document.getElementById('obligItem');
+  ITEMS.forEach(i => {
+    const opt = document.createElement('option');
+    opt.value = i.item; opt.textContent = i.item;
+    sel.appendChild(opt);
+  });
+})();
+
+function onObligItemChange() {
+  const val = document.getElementById('obligItem').value;
+  if (!val) { document.getElementById('obligInfoGrid').classList.add('hidden'); return; }
+  const item = ITEMS.find(i => i.item === val);
+  document.getElementById('obligInfoGrid').classList.remove('hidden');
+  document.getElementById('obligAreaInfo').textContent = item.area;
+  document.getElementById('obligCatInfo').textContent = item.categoria;
+  const needsArea = item.area === 'SELECCIONAR' || item.area === 'PRORRATEADO';
+  document.getElementById('obligAreaSelector').classList.toggle('hidden', !needsArea);
+}
+
 function abrirModalObligacion(id) {
   obligEditId = id || null;
   const o = id ? obligaciones.find(x => x.id === id) : null;
   document.getElementById('modalObligTitulo').textContent = o ? 'Editar obligación' : 'Nueva obligación';
   document.getElementById('obligNombre').value = o ? o.nombre : '';
+  document.getElementById('obligItem').value = o ? (o.item||'') : '';
   document.getElementById('obligFrecuencia').value = o ? o.frecuencia : '';
   document.getElementById('obligDia').value = o ? (o.dia || '') : '';
   document.getElementById('obligFechaEsp').value = o ? (o.fechaEsp || '') : '';
   document.getElementById('obligMonto').value = o ? (o.montoEstimado || '') : '';
   document.getElementById('obligObs').value = o ? (o.obs || '') : '';
+  document.getElementById('obligAreaEsp').value = o ? (o.areaEsp||'') : '';
   document.getElementById('btnEliminarOblig').classList.toggle('hidden', !o);
+  onObligItemChange();
   mostrarCamposFrecuencia();
   document.getElementById('modalOblig').classList.add('show');
 }
@@ -1067,17 +1140,26 @@ function mostrarCamposFrecuencia() {
 
 async function guardarObligacion() {
   const nombre = document.getElementById('obligNombre').value.trim();
+  const item = document.getElementById('obligItem').value;
   const frecuencia = document.getElementById('obligFrecuencia').value;
   const dia = document.getElementById('obligDia').value;
   const fechaEsp = document.getElementById('obligFechaEsp').value;
   const montoEstimado = document.getElementById('obligMonto').value;
   const obs = document.getElementById('obligObs').value.trim();
+  const areaEsp = document.getElementById('obligAreaEsp').value;
 
   if (!nombre || !frecuencia) { alert('Completa el nombre y la frecuencia'); return; }
   if (frecuencia === 'mensual_dia' && !dia) { alert('Ingresa el día del mes'); return; }
   if (frecuencia === 'variable' && !fechaEsp) { alert('Ingresa la fecha de vencimiento'); return; }
 
-  const payload = { action: 'saveObligacion', id: obligEditId, nombre, frecuencia, dia, fechaEsp, montoEstimado, obs };
+  // Obtener datos del ítem si fue seleccionado
+  const itemData = item ? ITEMS.find(i => i.item === item) : null;
+  const area = itemData ? (itemData.area === 'SELECCIONAR' || itemData.area === 'PRORRATEADO' ? areaEsp : itemData.area) : '';
+  const categoria = itemData ? itemData.categoria : '';
+  const tipo = itemData ? itemData.tipo : '';
+  const subTipo = itemData ? itemData.subTipo : '';
+
+  const payload = { action: 'saveObligacion', id: obligEditId, nombre, item, frecuencia, dia, fechaEsp, montoEstimado, obs, area, areaEsp, categoria, tipo, subTipo };
   try {
     const r = await fetch(BACKEND_URL, { method: 'POST', body: JSON.stringify(payload) });
     const data = await r.json();
