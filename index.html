@@ -1281,43 +1281,63 @@ function resetModalPago() {
 // Poblar selector de ítems en modal obligación
 async function sugerirProrrateoRegistro() {
   const sug = document.getElementById('sugerenciaRegistro');
+  const a1 = document.getElementById('area1').value;
+  const a2 = document.getElementById('area2').value;
+  const a3 = document.getElementById('area3').value;
+  const areasIngresadas = [a1, a2, a3].filter(a => a);
+  if (!areasIngresadas.length) { sug.style.display='block'; sug.textContent='⚠️ Ingresa al menos un área primero'; return; }
   sug.style.display = 'block';
-  sug.textContent = '⏳ Consultando ventas del mes anterior...';
+  sug.textContent = '⏳ Calculando porcentajes...';
   try {
-    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getVentasPorArea' }) });
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getVentasPorArea', areas: areasIngresadas }) });
     const data = await r.json();
     if (!data.ok || !data.areas || !data.areas.length) { sug.textContent = '⚠️ No se pudieron obtener las ventas'; return; }
-    const top = data.areas.slice(0,3);
-    document.getElementById('area1').value = top[0]?.area||'';
-    document.getElementById('pct1').value = top[0]?.pct||'';
-    document.getElementById('area2').value = top[1]?.area||'';
-    document.getElementById('pct2').value = top[1]?.pct||'';
-    document.getElementById('area3').value = top[2]?.area||'';
-    document.getElementById('pct3').value = top[2]?.pct||'';
-    sug.textContent = `✅ Sugerencia basada en ventas de ${data.mes}: ${top.map(a=>`${a.area} ${a.pct}%`).join(' · ')}`;
+    // Filtrar solo las áreas ingresadas y recalcular %
+    const ventasAreas = {};
+    data.areas.forEach(a => { if (areasIngresadas.includes(a.area)) ventasAreas[a.area] = a.total; });
+    const totalFiltrado = Object.values(ventasAreas).reduce((s,v)=>s+v,0);
+    if (!totalFiltrado) { sug.textContent='⚠️ Sin ventas para las áreas seleccionadas'; return; }
+    // Calcular % para cada área ingresada
+    const pcts = areasIngresadas.map((a,i) => {
+      const pct = ventasAreas[a] ? Math.round(ventasAreas[a]/totalFiltrado*100) : 0;
+      return { area: a, pct };
+    });
+    // Ajustar para sumar 100
+    const suma = pcts.reduce((s,p)=>s+p.pct,0);
+    if (suma !== 100 && pcts.length) pcts[0].pct += (100-suma);
+    // Solo rellenar porcentajes
+    if (pcts[0]) document.getElementById('pct1').value = pcts[0].pct;
+    if (pcts[1]) document.getElementById('pct2').value = pcts[1].pct;
+    if (pcts[2]) document.getElementById('pct3').value = pcts[2].pct;
+    sug.textContent = `✅ ${data.mes}: ${pcts.map(p=>`${p.area} ${p.pct}%`).join(' · ')}`;
     validarProrrateo(); checkReady();
   } catch(e) { sug.textContent = '⚠️ Error de conexión'; }
 }
 
 async function sugerirProrrateo() {
   const sug = document.getElementById('sugerenciaProrrateo');
+  const a1 = document.getElementById('obligPArea1').value;
+  const a2 = document.getElementById('obligPArea2').value;
+  const a3 = document.getElementById('obligPArea3').value;
+  const areasIngresadas = [a1, a2, a3].filter(a => a);
+  if (!areasIngresadas.length) { sug.style.display='block'; sug.textContent='⚠️ Ingresa al menos un área primero'; return; }
   sug.style.display = 'block';
-  sug.textContent = '⏳ Consultando ventas del mes anterior...';
+  sug.textContent = '⏳ Calculando porcentajes...';
   try {
-    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getVentasPorArea' }) });
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getVentasPorArea', areas: areasIngresadas }) });
     const data = await r.json();
-    if (!data.ok || !data.areas) { sug.textContent = '⚠️ No se pudieron obtener las ventas'; return; }
-    const areas = data.areas; // [{area, total, pct}]
-    if (!areas.length) { sug.textContent = '⚠️ Sin ventas registradas el mes anterior'; return; }
-    // Rellenar hasta 3 áreas
-    const top = areas.slice(0,3);
-    document.getElementById('obligPArea1').value = top[0]?.area||'';
-    document.getElementById('obligPPct1').value = top[0]?.pct||'';
-    document.getElementById('obligPArea2').value = top[1]?.area||'';
-    document.getElementById('obligPPct2').value = top[1]?.pct||'';
-    document.getElementById('obligPArea3').value = top[2]?.area||'';
-    document.getElementById('obligPPct3').value = top[2]?.pct||'';
-    sug.textContent = `✅ Sugerencia basada en ventas de ${data.mes}: ${top.map(a=>`${a.area} ${a.pct}%`).join(' · ')}`;
+    if (!data.ok || !data.areas || !data.areas.length) { sug.textContent = '⚠️ No se pudieron obtener las ventas'; return; }
+    const ventasAreas = {};
+    data.areas.forEach(a => { if (areasIngresadas.includes(a.area)) ventasAreas[a.area] = a.total; });
+    const totalFiltrado = Object.values(ventasAreas).reduce((s,v)=>s+v,0);
+    if (!totalFiltrado) { sug.textContent='⚠️ Sin ventas para las áreas seleccionadas'; return; }
+    const pcts = areasIngresadas.map(a => ({ area: a, pct: ventasAreas[a] ? Math.round(ventasAreas[a]/totalFiltrado*100) : 0 }));
+    const suma = pcts.reduce((s,p)=>s+p.pct,0);
+    if (suma !== 100 && pcts.length) pcts[0].pct += (100-suma);
+    if (pcts[0]) document.getElementById('obligPPct1').value = pcts[0].pct;
+    if (pcts[1]) document.getElementById('obligPPct2').value = pcts[1].pct;
+    if (pcts[2]) document.getElementById('obligPPct3').value = pcts[2].pct;
+    sug.textContent = `✅ ${data.mes}: ${pcts.map(p=>`${p.area} ${p.pct}%`).join(' · ')}`;
   } catch(e) { sug.textContent = '⚠️ Error de conexión'; }
 }
 
