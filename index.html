@@ -557,6 +557,7 @@ document.getElementById('fileInputCam').addEventListener('change', e => handleFi
 document.getElementById('fileInputGal').addEventListener('change', e => handleFileSelect(e.target.files[0]));
 
 ITEMS.forEach(i => {
+  const opt = document.createElement('option');
   opt.value = i.item; opt.textContent = i.item;
   itemSelect.appendChild(opt);
 });
