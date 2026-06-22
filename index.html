@@ -1245,7 +1245,7 @@ function renderObligaciones() {
     const prox = proximaFecha(o);
     const badgeLabel = est === 'proximo' ? '⚠️ HOY/MAÑANA' : est === 'pagado' ? '✓ PAGADO' : 'PENDIENTE';
     const badgeClass = est;
-    const montoStr = o.montoEstimado ? ' · $'+parseInt(o.montoEstimado).toLocaleString('es-CL') : '';
+    const montoStr = o.montoEstimado && !isNaN(parseInt(o.montoEstimado)) ? ' · $'+parseInt(o.montoEstimado).toLocaleString('es-CL') : '';
     const fechaStr = prox ? ` · Vence: ${fmtFecha(prox)}` : '';
     const ultPagoStr = o.ultimoPago ? ` · Último pago: ${fmtFecha(o.ultimoPago)}` : '';
     return `<div class="oblig-item ${est === 'proximo' ? 'alerta' : est === 'pagado' ? 'pagado' : ''}">
