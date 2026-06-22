@@ -865,7 +865,16 @@ function proximaFecha(oblig) {
   const yr = hoyD.getFullYear(), mo = hoyD.getMonth(), dia = hoyD.getDate();
 
   if (oblig.frecuencia === 'variable') {
-    return oblig.fechaEsp || '';
+    const fe = String(oblig.fechaEsp||'');
+    if (!fe) return '';
+    // Si es Date string de Sheets, convertir a yyyy-mm-dd
+    if (!fe.match(/^\d{4}-\d{2}-\d{2}/)) {
+      const d = new Date(fe);
+      if (!isNaN(d.getTime())) {
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      }
+    }
+    return fe.slice(0,10);
   }
   if (oblig.frecuencia === 'mensual_dia') {
     const d = parseInt(oblig.dia);
@@ -906,8 +915,20 @@ function estadoOblig(oblig) {
 
 function fmtFecha(str) {
   if (!str) return '';
-  const [y,m,d] = str.split('-');
-  return `${d}/${m}/${y}`;
+  const s = String(str);
+  // formato yyyy-mm-dd
+  if (s.match(/^\d{4}-\d{2}-\d{2}/)) {
+    const [y,m,d] = s.slice(0,10).split('-');
+    return `${d}/${m}/${y}`;
+  }
+  // formato dd/mm/yyyy
+  if (s.match(/^\d{2}\/\d{2}\/\d{4}/)) return s.slice(0,10);
+  // objeto Date de Sheets
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+  }
+  return s;
 }
 
 function renderObligaciones() {
