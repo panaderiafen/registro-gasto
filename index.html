@@ -1123,7 +1123,10 @@ async function cargarAnalisis() {
   } catch(e) { carg.textContent = 'Error de conexión.'; }
 }
 
-function parseMonto(v) { return parseFloat(String(v||'0').replace(/[$\.]/g,'').replace(',','.')) || 0; }
+function parseMonto(v) {
+  if (typeof v === 'number') return v;
+  return parseFloat(String(v||'0').replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,'')) || 0;
+}
 
 function renderAnalisis(gastos, mes, anio) {
   const mesStr = String(mes).padStart(2,'0');
@@ -1198,7 +1201,7 @@ function renderAnalisis(gastos, mes, anio) {
         const y=parts[0]||'';
         const m=parts[1]||'01';
         const mesIdx=parseInt(m)-1;
-        const label=`${(MESES[mesIdx]||'?').slice(0,3)} ${y}`;
+        const label=`${MESES[mesIdx]||'?'} ${y}`;
         const v=porMes[k];
         const esMesActual = k===`${anio}-${mesStr}`;
         return `<div class="evol-row">
