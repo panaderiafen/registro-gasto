@@ -1134,9 +1134,18 @@ function renderAnalisis(gastos, mes, anio) {
   // Normalizar fechas — formato dd/mm/yyyy → yyyy-mm
   function getMesKey(fechaStr) {
     const f = String(fechaStr||'');
-    const parts = f.split('/');
-    if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2,'0')}`;
-    if (f.length >= 7 && f.includes('-')) return f.slice(0,7);
+    // formato dd/mm/yyyy
+    const partsSlash = f.split('/');
+    if (partsSlash.length === 3) return `${partsSlash[2]}-${partsSlash[1].padStart(2,'0')}`;
+    // formato yyyy-mm-dd
+    if (f.length >= 7 && f.match(/^\d{4}-\d{2}/)) return f.slice(0,7);
+    // formato Date string: "Mon Jun 22 2026 ..."
+    const d = new Date(f);
+    if (!isNaN(d.getTime())) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,'0');
+      return `${y}-${m}`;
+    }
     return '';
   }
 
