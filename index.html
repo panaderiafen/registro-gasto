@@ -331,6 +331,7 @@
       </select>
       <select id="anAnio" onchange="cargarAnalisis()" style="width:90px;font-size:14px;padding:8px 10px;">
       </select>
+      <button onclick="cargarAnalisis()" style="padding:8px 14px;background:#003a79;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">🔄</button>
     </div>
   </div>
 
@@ -1229,13 +1230,17 @@ function renderObligaciones() {
     const montoStr = o.montoEstimado ? ' · $'+parseInt(o.montoEstimado).toLocaleString('es-CL') : '';
     const fechaStr = prox ? ` · Vence: ${fmtFecha(prox)}` : '';
     const ultPagoStr = o.ultimoPago ? ` · Último pago: ${fmtFecha(o.ultimoPago)}` : '';
-    return `<div class="oblig-item ${est === 'proximo' ? 'alerta' : est === 'pagado' ? 'pagado' : ''}" onclick="clickOblig('${o.id}')">
-      <div class="oblig-header">
+    return `<div class="oblig-item ${est === 'proximo' ? 'alerta' : est === 'pagado' ? 'pagado' : ''}">
+      <div class="oblig-header" onclick="clickOblig('${o.id}')" style="cursor:pointer;">
         <div class="oblig-nombre">${o.nombre}</div>
         <span class="oblig-badge ${badgeClass}">${badgeLabel}</span>
       </div>
-      <div class="oblig-detalle">${o.obs || ''}${montoStr}</div>
-      <div class="oblig-fecha">${fechaStr}${ultPagoStr}</div>
+      <div class="oblig-detalle" onclick="clickOblig('${o.id}')" style="cursor:pointer;">${o.obs || ''}${montoStr}</div>
+      <div class="oblig-fecha" onclick="clickOblig('${o.id}')" style="cursor:pointer;">${fechaStr}${ultPagoStr}</div>
+      <div style="display:flex;gap:8px;margin-top:10px;border-top:1px solid #f0f0f0;padding-top:8px;">
+        <button onclick="abrirModalObligacion('${o.id}')" style="flex:1;padding:7px;background:#f0f4ff;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#003a79;cursor:pointer;">✏️ Editar</button>
+        <button onclick="confirmarEliminarOblig('${o.id}','${o.nombre.replace(/'/g,"\\'")}')" style="flex:1;padding:7px;background:#fff0f0;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#c0392b;cursor:pointer;">🗑 Eliminar</button>
+      </div>
     </div>`;
   }).join('');
 
@@ -1244,6 +1249,16 @@ function renderObligaciones() {
   const badge = document.getElementById('badgeOblig');
   if (alertas > 0) { badge.textContent = alertas; badge.classList.add('show'); }
   else { badge.classList.remove('show'); }
+}
+
+async function confirmarEliminarOblig(id, nombre) {
+  if (!confirm(`¿Eliminar la obligación "${nombre}"?`)) return;
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'deleteObligacion', id }) });
+    const data = await r.json();
+    if (data.ok) await cargarObligaciones();
+    else alert('Error: ' + (data.error||''));
+  } catch(e) { alert('Error de conexión'); }
 }
 
 function revisarAlertas() {
