@@ -250,8 +250,9 @@
   <button class="btn-submit" id="btnSubmit" disabled>✓ Registrar gasto</button>
 
   <div class="records-section" style="margin-top:28px">
-    <div class="records-title">Registros de esta sesión <span class="badge-count" id="countBadge">0</span></div>
-    <div id="recordsList"><div class="empty-records">Aún no hay registros</div></div>
+    <div class="records-title">Últimos registros <span class="badge-count" id="countBadge">0</span></div>
+    <div id="recordsList"><div class="empty-records">Cargando registros...</div></div>
+    <button id="btnVerMas" onclick="verMasRegistros()" class="hidden" style="width:100%;padding:10px;margin-top:8px;background:white;border:1px solid #ddd;border-radius:8px;font-size:13px;font-weight:600;color:#003a79;cursor:pointer;">Ver más registros</button>
   </div>
 </div>
 
@@ -1108,6 +1109,8 @@ btnSubmit.addEventListener('click', async () => {
     const result = await response.json();
     if (result.status === 'ok') {
       records.push({ item: itemsData.map(d=>d.item).join(', '), area: '', thumb: previewImg.src, date: dateStr, time: timeStr, monto: String(montoTotal) });
+      registrosMostrados = 3;
+      await cargarUltimosRegistros();
       renderRecords(); formSection.style.display = 'none'; successScreen.style.display = 'block';
     } else { alert('Error al guardar: ' + (result.message || 'Error desconocido')); btnSubmit.disabled = false; btnSubmit.innerHTML = '✓ Registrar gasto'; }
   } catch(err) { alert('Error de conexión. Revisa tu internet e intenta de nuevo.'); btnSubmit.disabled = false; btnSubmit.innerHTML = '✓ Registrar gasto'; }
@@ -1152,18 +1155,76 @@ document.getElementById('btnNew').addEventListener('click', () => {
   window.scrollTo(0,0);
 });
 
+let todosRegistros = []; // registros desde Sheets
+let registrosMostrados = 3;
+
+async function cargarUltimosRegistros() {
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getGastos' }) });
+    const data = await r.json();
+    if (data.gastos) {
+      // Ordenar por fecha descendente (más reciente primero)
+      todosRegistros = data.gastos.filter(g => g.fecha).sort((a,b) => {
+        const fa = new Date(a.fecha); const fb = new Date(b.fecha);
+        return fb - fa;
+      });
+      renderRecords();
+    }
+  } catch(e) { /* silencioso */ }
+}
+
+function verMasRegistros() {
+  registrosMostrados += 10;
+  renderRecords();
+}
+
 function renderRecords() {
-  countBadge.textContent = records.length;
-  if (!records.length) { recordsList.innerHTML = '<div class="empty-records">Aún no hay registros</div>'; return; }
-  recordsList.innerHTML = records.slice().reverse().map(r => `
-    <div class="record-item">
-      <img class="record-thumb" src="${r.thumb}" alt="boleta"/>
+  // Combinar registros de sesión actual con los de Sheets
+  const sesionItems = records.slice().reverse().map(r => ({
+    fecha: r.date, item: r.item, area: r.area, monto: r.monto,
+    thumb: r.thumb, esSesion: true
+  }));
+
+  // Usar registros de Sheets si están disponibles, sino solo sesión
+  let lista = [];
+  if (todosRegistros.length) {
+    lista = todosRegistros.slice(0, registrosMostrados);
+  } else {
+    lista = sesionItems;
+  }
+
+  countBadge.textContent = todosRegistros.length || records.length;
+
+  if (!lista.length) {
+    recordsList.innerHTML = '<div class="empty-records">Aún no hay registros</div>';
+    document.getElementById('btnVerMas').classList.add('hidden');
+    return;
+  }
+
+  recordsList.innerHTML = lista.map(r => {
+    const fecha = r.fecha || r.date || '';
+    const fechaFmt = fecha ? (fecha.includes('/') ? fecha : fmtFecha(fecha)) : '';
+    const monto = r.montoFinal || r.monto || '';
+    const montoFmt = monto && !isNaN(parseInt(monto)) ? '$'+parseInt(monto).toLocaleString('es-CL') : '';
+    const area = r.area || '';
+    return `<div class="record-item">
+      ${r.thumb ? `<img class="record-thumb" src="${r.thumb}" alt="boleta"/>` : `<div style="width:40px;height:40px;border-radius:6px;background:#f0f4ff;display:flex;align-items:center;justify-content:center;font-size:18px;">🧾</div>`}
       <div class="record-info">
-        <div class="record-name">${r.item}</div>
-        <div class="record-date">${r.date} ${r.time}${r.monto ? ' · $'+parseInt(r.monto).toLocaleString('es-CL') : ''}</div>
+        <div class="record-name">${r.item || ''}</div>
+        <div class="record-date">${fechaFmt}${montoFmt ? ' · '+montoFmt : ''}</div>
       </div>
-      <span class="record-area">${r.area}</span>
-    </div>`).join('');
+      ${area ? `<span class="record-area">${area}</span>` : ''}
+    </div>`;
+  }).join('');
+
+  // Mostrar botón ver más si hay más registros
+  const btnVerMas = document.getElementById('btnVerMas');
+  if (todosRegistros.length > registrosMostrados) {
+    btnVerMas.classList.remove('hidden');
+    btnVerMas.textContent = `Ver más (${todosRegistros.length - registrosMostrados} restantes)`;
+  } else {
+    btnVerMas.classList.add('hidden');
+  }
 }
 
 // ─── OBLIGACIONES ─────────────────────────────
@@ -1764,6 +1825,7 @@ function mostrarAlertaDisruptiva(proximas) {
 // Al cargar la app — revisar alertas y mostrar modal disruptivo
 window.addEventListener('load', () => {
   cargarItems();
+  cargarUltimosRegistros();
   fetch(BACKEND_URL, { method: 'POST', body: JSON.stringify({ action: 'getObligaciones' }) })
     .then(r => r.json()).then(data => {
       obligaciones = data.obligaciones || [];
