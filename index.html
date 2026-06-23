@@ -1605,9 +1605,14 @@ function abrirModalObligacion(id) {
   // Cargar datos de área DESPUÉS de onObligItemChange (que resetea los selectores)
   if (o) {
     if (o.area === 'MULTI' || (o.multiArea && o.multiArea.length)) {
+      // Mostrar selector multi-área y cargar datos
+      document.getElementById('obligAreaSelector').classList.remove('hidden');
       document.getElementById('obligSelAreaFilas').innerHTML = '';
-      (o.multiArea||[]).forEach(m => agregarFilaAreaOblig(m.area, m.monto));
-      if (!o.multiArea || !o.multiArea.length) agregarFilaAreaOblig();
+      if (o.multiArea && o.multiArea.length) {
+        o.multiArea.forEach(m => agregarFilaAreaOblig(m.area, m.monto));
+      } else {
+        agregarFilaAreaOblig();
+      }
     } else if (o.area === 'PRORRATEADO') {
       document.getElementById('obligProrrateoSelector').classList.remove('hidden');
       document.getElementById('obligPArea1').value = o.pArea1||'';
@@ -1616,7 +1621,11 @@ function abrirModalObligacion(id) {
       document.getElementById('obligPPct2').value = o.pPct2||'';
       document.getElementById('obligPArea3').value = o.pArea3||'';
       document.getElementById('obligPPct3').value = o.pPct3||'';
+    } else if (o.area && o.area !== '') {
+      // Área fija — mostrar en info
     }
+    // Cargar monto estimado
+    document.getElementById('obligMonto').value = o.montoEstimado || '';
   }
 
   document.getElementById('modalOblig').classList.add('show');
