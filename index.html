@@ -1356,7 +1356,11 @@ async function confirmarPago() {
   const obs = document.getElementById('pagoObs').value;
   if (!monto || !fecha) { alert('Ingresa el monto y la fecha de pago'); return; }
 
-  let imageData = null, fileName = null, mimeType = null;
+  // Bloquear botón para evitar doble envío
+  const btnConfirmar = document.querySelector('#modalPago .btn-confirmar');
+  const textoOriginal = btnConfirmar.textContent;
+  btnConfirmar.disabled = true;
+  btnConfirmar.textContent = '⏳ Guardando...';
   if (pagoFile) {
     imageData = await fileToBase64(pagoFile);
     fileName = pagoFile.name;
@@ -1406,8 +1410,16 @@ async function confirmarPago() {
       resetModalPago();
       cerrarModal('modalPago');
       await cargarObligaciones();
-    } else { alert('Error al registrar pago: ' + (data.error || '')); }
-  } catch(e) { alert('Error de conexión'); }
+    } else {
+      btnConfirmar.disabled = false;
+      btnConfirmar.textContent = textoOriginal;
+      alert('Error al registrar pago: ' + (data.error || ''));
+    }
+  } catch(e) {
+    btnConfirmar.disabled = false;
+    btnConfirmar.textContent = textoOriginal;
+    alert('Error de conexión');
+  }
 }
 
 function resetModalPago() {
