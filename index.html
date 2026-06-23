@@ -989,7 +989,7 @@ function recalcularTotal() {
 }
 
 function poblarSelectoresItem() {
-  // Solo poblar selectores de obligaciones (los de registro se crean dinámicamente)
+  // Solo poblar selector de obligaciones
   const selOblig = document.getElementById('obligItem');
   if (!selOblig) return;
   const valOblig = selOblig.value;
@@ -1000,6 +1000,18 @@ function poblarSelectoresItem() {
     selOblig.appendChild(opt);
   });
   if (valOblig) selOblig.value = valOblig;
+
+  // Repoblar selectores de ítems en secciones existentes
+  document.querySelectorAll('[id^="itemSel-"]').forEach(sel => {
+    const val = sel.value;
+    sel.innerHTML = '<option value="">— Selecciona un ítem —</option>';
+    ITEMS.forEach(i => {
+      const opt = document.createElement('option');
+      opt.value = i.item; opt.textContent = i.item;
+      sel.appendChild(opt);
+    });
+    if (val) sel.value = val;
+  });
 }
 
 function handleFileSelect(file) {
@@ -1202,8 +1214,8 @@ function resetFormulario() {
   document.getElementById('fileInputCam').value = '';
   document.getElementById('fileInputGal').value = '';
   btnSubmit.disabled = true; btnSubmit.innerHTML = '✓ Registrar gasto';
-  // Agregar primera sección
-  agregarSeccionItem();
+  // Agregar primera sección con ítems ya cargados
+  if (ITEMS.length) agregarSeccionItem();
 }
 
 document.getElementById('btnNew').addEventListener('click', () => {
