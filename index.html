@@ -1454,6 +1454,8 @@ function resetModalPago() {
   document.getElementById('pagoUploadText').textContent = 'Selecciona una opción';
   document.getElementById('pagoUploadIcon').textContent = '📷';
   document.getElementById('pagoUploadBtns').style.display = 'grid';
+  const btn = document.getElementById('btnConfirmarPago');
+  if (btn) { btn.disabled = false; btn.textContent = '✓ Confirmar pago'; }
 }
 
 // Poblar selector de ítems en modal obligación
