@@ -162,6 +162,16 @@
   .evol-bar-wrap { flex:1; background:#f0f0f0; border-radius:6px; height:8px; overflow:hidden; }
   .evol-bar { height:8px; border-radius:6px; background:#003a79; transition:width 0.4s; }
   .evol-valor { font-size:12px; font-weight:700; color:#003a79; min-width:90px; text-align:right; }
+
+  /* TOAST */
+  #toast {
+    position:fixed; bottom:80px; left:50%; transform:translateX(-50%);
+    background:#27ae60; color:white; padding:12px 24px; border-radius:24px;
+    font-size:14px; font-weight:600; z-index:9999;
+    opacity:0; transition:opacity 0.3s; pointer-events:none;
+    white-space:nowrap; box-shadow:0 4px 16px rgba(0,0,0,0.2);
+  }
+  #toast.show { opacity:1; }
 </style>
 
 </head>
@@ -415,7 +425,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn-cancelar" onclick="cerrarModal('modalItem')">Cancelar</button>
-      <button class="btn-confirmar" onclick="guardarItem()">Guardar</button>
+      <button class="btn-confirmar" id="btnGuardarItem" onclick="guardarItem()">Guardar</button>
     </div>
     <button class="btn-eliminar hidden" id="btnEliminarItem" onclick="eliminarItem()">🗑 Eliminar este ítem</button>
   </div>
@@ -541,7 +551,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn-cancelar" onclick="cerrarModal('modalOblig')">Cancelar</button>
-      <button class="btn-confirmar" onclick="guardarObligacion()">Guardar</button>
+      <button class="btn-confirmar" id="btnGuardarOblig" onclick="guardarObligacion()">Guardar</button>
     </div>
     <button class="btn-eliminar hidden" id="btnEliminarOblig" onclick="eliminarObligacion()">🗑 Eliminar esta obligación</button>
   </div>
@@ -580,6 +590,9 @@
     </div>
   </div>
 </div>
+
+<!-- TOAST -->
+<div id="toast"></div>
 
 <!-- MODAL ALERTA DISRUPTIVA -->
 <div class="modal-overlay" id="modalAlerta" style="align-items:center;">
@@ -681,6 +694,38 @@ function poblarSelectoresItem() {
   });
 }
 
+let toastTimer = null;
+function showToast(msg, tipo='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = tipo === 'success' ? '#27ae60' : '#e74c3c';
+  t.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ─── HELPER BOTONES CON ESTADO ────────────────
+async function btnAction(btnId, loadingText, successText, accion) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return accion();
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `⏳ ${loadingText}`;
+  try {
+    const result = await accion();
+    btn.innerHTML = `✅ ${successText}`;
+    btn.style.background = '#27ae60';
+    btn.style.color = 'white';
+    await new Promise(r => setTimeout(r, 3000));
+    return result;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = original;
+    btn.style.background = '';
+    btn.style.color = '';
+  }
+}
+
 // ─── GESTIÓN DE ÍTEMS ────────────────────────
 let itemEditNombre = null;
 
@@ -716,17 +761,14 @@ async function guardarItem() {
   const subTipo = document.getElementById('itemSubTipo').value;
   const area = document.getElementById('itemArea').value;
   if (!nombre || !categoria || !tipo || !subTipo || !area) { alert('Completa todos los campos'); return; }
-  try {
+  await btnAction('btnGuardarItem', 'Guardando ítem...', 'Ítem guardado', async () => {
     const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({
       action: 'saveItem', nombreOriginal: itemEditNombre, nombre, categoria, tipo, subTipo, area
     })});
     const data = await r.json();
-    if (data.ok) {
-      cerrarModal('modalItem');
-      await cargarItems();
-      renderItems();
-    } else { alert('Error: ' + (data.error||'')); }
-  } catch(e) { alert('Error de conexión'); }
+    if (data.ok) { cerrarModal('modalItem'); await cargarItems(); renderItems(); }
+    else { alert('Error: ' + (data.error||'')); }
+  });
 }
 
 async function eliminarItem() {
@@ -1145,6 +1187,7 @@ btnSubmit.addEventListener('click', async () => {
       records.push({ item: itemsData.map(d=>d.item).join(', '), area: '', thumb: previewImg.src, date: dateStr, time: timeStr, monto: String(montoTotal) });
       registrosMostrados = 3;
       await cargarUltimosRegistros();
+      showToast('✅ Gasto registrado correctamente');
       renderRecords(); formSection.style.display = 'none'; successScreen.style.display = 'block';
     } else { alert('Error al guardar: ' + (result.message || 'Error desconocido')); btnSubmit.disabled = false; btnSubmit.innerHTML = '✓ Registrar gasto'; }
   } catch(err) { alert('Error de conexión. Revisa tu internet e intenta de nuevo.'); btnSubmit.disabled = false; btnSubmit.innerHTML = '✓ Registrar gasto'; }
@@ -1433,7 +1476,7 @@ async function archivarOblig(id) {
   try {
     const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'archivarObligacion', id }) });
     const data = await r.json();
-    if (data.ok) await cargarObligaciones();
+    if (data.ok) { showToast('✅ Obligación archivada'); await cargarObligaciones(); }
     else alert('Error: ' + (data.error||''));
   } catch(e) { alert('Error de conexión'); }
 }
@@ -1443,7 +1486,7 @@ async function confirmarEliminarOblig(id, nombre) {
   try {
     const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'deleteObligacion', id }) });
     const data = await r.json();
-    if (data.ok) await cargarObligaciones();
+    if (data.ok) { showToast('✅ Obligación eliminada'); await cargarObligaciones(); }
     else alert('Error: ' + (data.error||''));
   } catch(e) { alert('Error de conexión'); }
 }
@@ -1793,12 +1836,12 @@ async function guardarObligacion() {
   ) : '';
 
   const payload = { action: 'saveObligacion', id: obligEditId, nombre, item, frecuencia, dia, fechaEsp, montoEstimado, obs, area, areaEsp, pArea1, pPct1, pArea2, pPct2, pArea3, pPct3, categoria, tipo, subTipo, multiArea: multiAreaOblig };
-  try {
+  await btnAction('btnGuardarOblig', 'Guardando...', 'Obligación guardada', async () => {
     const r = await fetch(BACKEND_URL, { method: 'POST', body: JSON.stringify(payload) });
     const data = await r.json();
     if (data.ok) { cerrarModal('modalOblig'); await cargarObligaciones(); }
     else { alert('Error al guardar: ' + (data.error || '')); }
-  } catch(e) { alert('Error de conexión'); }
+  });
 }
 
 async function eliminarObligacion() {
@@ -1900,20 +1943,14 @@ async function confirmarEditarGasto() {
   const monto = document.getElementById('editMonto').value;
   const area = document.getElementById('editArea').value;
   const obs = document.getElementById('editObs').value;
-  const btn = document.getElementById('btnConfirmarEditar');
-  btn.disabled = true; btn.textContent = '⏳ Guardando...';
-  try {
+  await btnAction('btnConfirmarEditar', 'Guardando cambios...', 'Cambios guardados', async () => {
     const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({
       action: 'editarGasto', fila, fecha, monto, area, obs
     })});
     const data = await r.json();
-    if (data.ok) {
-      cerrarModal('modalEditarGasto');
-      registrosMostrados = 3;
-      await cargarUltimosRegistros();
-    } else { alert('Error: ' + (data.error||'')); }
-  } catch(e) { alert('Error de conexión'); }
-  finally { btn.disabled = false; btn.textContent = 'Guardar cambios'; }
+    if (data.ok) { cerrarModal('modalEditarGasto'); registrosMostrados = 3; await cargarUltimosRegistros(); }
+    else { alert('Error: ' + (data.error||'')); }
+  });
 }
 
 async function eliminarGasto(fila) {
