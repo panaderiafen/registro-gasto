@@ -110,6 +110,7 @@
   .oblig-badge { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 10px; }
   .oblig-badge.pendiente { background: #fdecea; color: #c0392b; }
   .oblig-badge.proximo { background: #fff3cd; color: #856404; }
+  .oblig-badge.vencida { background: #c0392b; color: white; }
   .oblig-badge.pagado { background: #d4edda; color: #155724; }
   .oblig-detalle { font-size: 13px; color: #666; margin-top: 4px; }
   .oblig-fecha { font-size: 12px; color: #999; margin-top: 2px; }
@@ -1257,6 +1258,7 @@ function estadoOblig(oblig) {
     if (oblig.ultimoPago && prox > oblig.ultimoPago) return 'pendiente';
     return 'pagado';
   }
+  if (prox && prox < hoyStr) return 'vencida'; // ya venció
   if (prox === hoyStr || prox === mananaStr) return 'proximo';
   return 'pendiente';
 }
@@ -1290,7 +1292,7 @@ function renderObligaciones() {
   // Ordenar: próximos primero, luego pendientes, luego pagados
   const ordenadas = [...visibles].sort((a,b) => {
     const ea = estadoOblig(a), eb = estadoOblig(b);
-    const orden = { proximo: 0, pendiente: 1, pagado: 2 };
+    const orden = { vencida: 0, proximo: 1, pendiente: 2, pagado: 3 };
     if (orden[ea] !== orden[eb]) return orden[ea] - orden[eb];
     return (proximaFecha(a)||'').localeCompare(proximaFecha(b)||'');
   });
@@ -1298,12 +1300,13 @@ function renderObligaciones() {
   lista.innerHTML = ordenadas.map(o => {
     const est = estadoOblig(o);
     const prox = proximaFecha(o);
-    const badgeLabel = est === 'proximo' ? '⚠️ HOY/MAÑANA' : est === 'pagado' ? '✓ PAGADO' : 'PENDIENTE';
+    const badgeLabel = est === 'vencida' ? '🔴 VENCIDA' : est === 'proximo' ? '⚠️ HOY/MAÑANA' : est === 'pagado' ? '✓ PAGADO' : 'PENDIENTE';
     const badgeClass = est;
     const montoStr = o.montoEstimado && !isNaN(parseInt(o.montoEstimado)) ? ' · $'+parseInt(o.montoEstimado).toLocaleString('es-CL') : '';
     const fechaStr = prox ? ` · Vence: ${fmtFecha(prox)}` : '';
     const ultPagoStr = o.ultimoPago ? ` · Último pago: ${fmtFecha(o.ultimoPago)}` : '';
-    return `<div class="oblig-item ${est === 'proximo' ? 'alerta' : est === 'pagado' ? 'pagado' : ''}">
+    const esVencida = est === 'vencida';
+    return `<div class="oblig-item ${esVencida ? 'alerta' : est === 'proximo' ? 'alerta' : est === 'pagado' ? 'pagado' : ''}" style="${esVencida ? 'border-left-color:#c0392b;background:#fff5f5;' : ''}">
       <div class="oblig-header" onclick="clickOblig('${o.id}')" style="cursor:pointer;">
         <div class="oblig-nombre">${o.nombre}</div>
         <span class="oblig-badge ${badgeClass}">${badgeLabel}</span>
@@ -1318,8 +1321,8 @@ function renderObligaciones() {
     </div>`;
   }).join('');
 
-  // Badge en pestaña
-  const alertas = obligaciones.filter(o => o.estado !== 'ARCHIVADO' && estadoOblig(o) === 'proximo').length;
+  // Badge en pestaña — incluir vencidas y próximas
+  const alertas = obligaciones.filter(o => o.estado !== 'ARCHIVADO' && (estadoOblig(o) === 'proximo' || estadoOblig(o) === 'vencida')).length;
   const badge = document.getElementById('badgeOblig');
   if (alertas > 0) { badge.textContent = alertas; badge.classList.add('show'); }
   else { badge.classList.remove('show'); }
@@ -1345,14 +1348,17 @@ async function confirmarEliminarOblig(id, nombre) {
 }
 
 function revisarAlertas() {
-  const proximas = obligaciones.filter(o => o.estado !== 'ARCHIVADO' && estadoOblig(o) === 'proximo');
+  const proximas = obligaciones.filter(o => o.estado !== 'ARCHIVADO' && (estadoOblig(o) === 'proximo' || estadoOblig(o) === 'vencida'));
   const banner = document.getElementById('alertaBanner');
   if (!proximas.length) { banner.innerHTML = ''; return; }
   banner.innerHTML = `<div class="alerta-banner">
-    <div class="alerta-banner-titulo">⚠️ Obligaciones que vencen hoy o mañana</div>
-    ${proximas.map(o => `<div class="alerta-banner-item" onclick="clickOblig('${o.id}')" style="cursor:pointer">
-      📌 <strong>${o.nombre}</strong> — Vence: ${fmtFecha(proximaFecha(o))}${o.montoEstimado ? ' · $'+parseInt(o.montoEstimado).toLocaleString('es-CL') : ''}
-    </div>`).join('')}
+    <div class="alerta-banner-titulo">⚠️ Obligaciones que requieren atención</div>
+    ${proximas.map(o => {
+      const est = estadoOblig(o);
+      const etq = est === 'vencida' ? '🔴 VENCIDA' : '⚠️ HOY/MAÑANA';
+      const monto = o.montoEstimado && !isNaN(parseInt(o.montoEstimado)) ? ' · $'+parseInt(o.montoEstimado).toLocaleString('es-CL') : '';
+      return '<div class="alerta-banner-item" onclick="clickOblig(\''+o.id+'\' )" style="cursor:pointer">📌 <strong>'+o.nombre+'</strong> — '+etq+': '+fmtFecha(proximaFecha(o))+monto+'</div>';
+    }).join('')}
   </div>`;
 }
 
@@ -1360,7 +1366,7 @@ function clickOblig(id) {
   const o = obligaciones.find(x => x.id === id);
   if (!o) return;
   const est = estadoOblig(o);
-  if (est === 'proximo' || est === 'pendiente') {
+  if (est === 'proximo' || est === 'pendiente' || est === 'vencida') {
     obligPagoId = id;
     document.getElementById('modalPagoTitulo').textContent = `Registrar pago: ${o.nombre}`;
 
@@ -1761,7 +1767,7 @@ window.addEventListener('load', () => {
   fetch(BACKEND_URL, { method: 'POST', body: JSON.stringify({ action: 'getObligaciones' }) })
     .then(r => r.json()).then(data => {
       obligaciones = data.obligaciones || [];
-      const proximas = obligaciones.filter(o => o.estado !== 'ARCHIVADO' && estadoOblig(o) === 'proximo');
+      const proximas = obligaciones.filter(o => o.estado !== 'ARCHIVADO' && (estadoOblig(o) === 'proximo' || estadoOblig(o) === 'vencida'));
       // Badge en pestaña
       const badge = document.getElementById('badgeOblig');
       if (proximas.length) { badge.textContent = proximas.length; badge.classList.add('show'); }
