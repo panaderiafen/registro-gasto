@@ -547,6 +547,40 @@
   </div>
 </div>
 
+<!-- MODAL EDITAR GASTO -->
+<div class="modal-overlay" id="modalEditarGasto">
+  <div class="modal">
+    <div class="modal-title">Editar registro</div>
+    <div id="editarGastoInfo" style="background:#f8f9fa;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:13px;color:#555;"></div>
+    <div class="modal-field">
+      <label>Fecha de compra</label>
+      <input type="date" id="editFecha"/>
+    </div>
+    <div class="modal-field">
+      <label>Monto final ($)</label>
+      <div class="monto-input-wrap"><span>$</span><input type="number" id="editMonto" min="0" style="padding-left:36px"/></div>
+    </div>
+    <div class="modal-field">
+      <label>Área</label>
+      <select id="editArea">
+        <option value="">— Sin cambios —</option>
+        <option>BOL</option><option>PAN</option><option>CAF</option>
+        <option>PAS</option><option>ADMIN</option><option>VENTAS</option>
+        <option>PRORRATEADO</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Observación</label>
+      <input type="text" id="editObs" placeholder="Observación"/>
+    </div>
+    <input type="hidden" id="editFila"/>
+    <div class="modal-actions">
+      <button class="btn-cancelar" onclick="cerrarModal('modalEditarGasto')">Cancelar</button>
+      <button class="btn-confirmar" id="btnConfirmarEditar" onclick="confirmarEditarGasto()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL ALERTA DISRUPTIVA -->
 <div class="modal-overlay" id="modalAlerta" style="align-items:center;">
   <div class="modal" style="border-radius:20px;padding:28px 22px 32px;max-width:420px;margin:20px;">
@@ -1201,19 +1235,25 @@ function renderRecords() {
     return;
   }
 
-  recordsList.innerHTML = lista.map(r => {
+  recordsList.innerHTML = lista.map((r, idx) => {
     const fecha = r.fecha || r.date || '';
     const fechaFmt = fecha ? (fecha.includes('/') ? fecha : fmtFecha(fecha)) : '';
     const monto = r.montoFinal || r.monto || '';
     const montoFmt = monto && !isNaN(parseInt(monto)) ? '$'+parseInt(monto).toLocaleString('es-CL') : '';
     const area = r.area || '';
-    return `<div class="record-item">
-      ${r.thumb ? `<img class="record-thumb" src="${r.thumb}" alt="boleta"/>` : `<div style="width:40px;height:40px;border-radius:6px;background:#f0f4ff;display:flex;align-items:center;justify-content:center;font-size:18px;">🧾</div>`}
-      <div class="record-info">
-        <div class="record-name">${r.item || ''}</div>
-        <div class="record-date">${fechaFmt}${montoFmt ? ' · '+montoFmt : ''}</div>
+    const fila = r.fila || null;
+    return `<div class="record-item" style="flex-direction:column;align-items:stretch;gap:8px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        ${r.thumb ? `<img class="record-thumb" src="${r.thumb}" alt="boleta"/>` : `<div style="width:40px;height:40px;border-radius:6px;background:#f0f4ff;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🧾</div>`}
+        <div class="record-info" style="flex:1;min-width:0;">
+          <div class="record-name">${r.item || ''}</div>
+          <div class="record-date">${fechaFmt}${montoFmt ? ' · '+montoFmt : ''}${area ? ' · '+area : ''}</div>
+        </div>
       </div>
-      ${area ? `<span class="record-area">${area}</span>` : ''}
+      ${fila ? `<div style="display:flex;gap:8px;">
+        <button onclick="abrirEditarGasto(${fila})" style="flex:1;padding:6px;background:#f0f4ff;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#003a79;cursor:pointer;">✏️ Editar</button>
+        <button onclick="eliminarGasto(${fila})" style="flex:1;padding:6px;background:#fff0f0;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#c0392b;cursor:pointer;">🗑 Eliminar</button>
+      </div>` : ''}
     </div>`;
   }).join('');
 
@@ -1837,6 +1877,54 @@ window.addEventListener('load', () => {
       if (proximas.length) mostrarAlertaDisruptiva(proximas);
     }).catch(() => {});
 });
+
+// ─── EDITAR / ELIMINAR GASTOS ─────────────────
+function abrirEditarGasto(fila) {
+  const r = todosRegistros.find(x => x.fila === fila);
+  if (!r) return;
+  const fecha = r.fecha ? new Date(r.fecha) : null;
+  const fechaStr = fecha && !isNaN(fecha) ?
+    `${fecha.getFullYear()}-${String(fecha.getMonth()+1).padStart(2,'0')}-${String(fecha.getDate()).padStart(2,'0')}` : '';
+  document.getElementById('editFila').value = fila;
+  document.getElementById('editFecha').value = fechaStr;
+  document.getElementById('editMonto').value = r.montoFinal || '';
+  document.getElementById('editArea').value = r.area || '';
+  document.getElementById('editObs').value = r.observacion || '';
+  document.getElementById('editarGastoInfo').textContent = `${r.item || ''} · ${r.area || ''}`;
+  document.getElementById('modalEditarGasto').classList.add('show');
+}
+
+async function confirmarEditarGasto() {
+  const fila = parseInt(document.getElementById('editFila').value);
+  const fecha = document.getElementById('editFecha').value;
+  const monto = document.getElementById('editMonto').value;
+  const area = document.getElementById('editArea').value;
+  const obs = document.getElementById('editObs').value;
+  const btn = document.getElementById('btnConfirmarEditar');
+  btn.disabled = true; btn.textContent = '⏳ Guardando...';
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({
+      action: 'editarGasto', fila, fecha, monto, area, obs
+    })});
+    const data = await r.json();
+    if (data.ok) {
+      cerrarModal('modalEditarGasto');
+      registrosMostrados = 3;
+      await cargarUltimosRegistros();
+    } else { alert('Error: ' + (data.error||'')); }
+  } catch(e) { alert('Error de conexión'); }
+  finally { btn.disabled = false; btn.textContent = 'Guardar cambios'; }
+}
+
+async function eliminarGasto(fila) {
+  if (!confirm('¿Eliminar este registro de gasto?')) return;
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'eliminarGasto', fila })});
+    const data = await r.json();
+    if (data.ok) { registrosMostrados = 3; await cargarUltimosRegistros(); }
+    else { alert('Error: ' + (data.error||'')); }
+  } catch(e) { alert('Error de conexión'); }
+}
 
 // ─── ANÁLISIS ─────────────────────────────────
 let modoAnalisis = 'devengado'; // 'devengado' o 'caja'
