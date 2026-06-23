@@ -1272,7 +1272,7 @@ function renderObligaciones() {
   }).join('');
 
   // Badge en pestaña
-  const alertas = obligaciones.filter(o => estadoOblig(o) === 'proximo').length;
+  const alertas = obligaciones.filter(o => o.estado !== 'ARCHIVADO' && estadoOblig(o) === 'proximo').length;
   const badge = document.getElementById('badgeOblig');
   if (alertas > 0) { badge.textContent = alertas; badge.classList.add('show'); }
   else { badge.classList.remove('show'); }
@@ -1298,7 +1298,7 @@ async function confirmarEliminarOblig(id, nombre) {
 }
 
 function revisarAlertas() {
-  const proximas = obligaciones.filter(o => estadoOblig(o) === 'proximo');
+  const proximas = obligaciones.filter(o => o.estado !== 'ARCHIVADO' && estadoOblig(o) === 'proximo');
   const banner = document.getElementById('alertaBanner');
   if (!proximas.length) { banner.innerHTML = ''; return; }
   banner.innerHTML = `<div class="alerta-banner">
@@ -1722,7 +1722,7 @@ window.addEventListener('load', () => {
   fetch(BACKEND_URL, { method: 'POST', body: JSON.stringify({ action: 'getObligaciones' }) })
     .then(r => r.json()).then(data => {
       obligaciones = data.obligaciones || [];
-      const proximas = obligaciones.filter(o => estadoOblig(o) === 'proximo');
+      const proximas = obligaciones.filter(o => o.estado !== 'ARCHIVADO' && estadoOblig(o) === 'proximo');
       // Badge en pestaña
       const badge = document.getElementById('badgeOblig');
       if (proximas.length) { badge.textContent = proximas.length; badge.classList.add('show'); }
