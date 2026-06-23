@@ -1917,13 +1917,27 @@ async function confirmarEditarGasto() {
 }
 
 async function eliminarGasto(fila) {
-  if (!confirm('¿Eliminar este registro de gasto?')) return;
+  const r = todosRegistros.find(x => x.fila === fila);
+  if (!confirm(`¿Eliminar este registro?\n\n${r ? r.item + (r.area ? ' · ' + r.area : '') : ''}` )) return;
+
+  // Mostrar pantalla de espera
+  const lista = document.getElementById('recordsList');
+  const infoGasto = r ? `<div style="font-size:13px;color:#555;margin-top:8px;">${r.item || ''}${r.area ? ' · '+r.area : ''}${r.montoFinal ? ' · $'+parseInt(r.montoFinal).toLocaleString('es-CL') : ''}</div>` : '';
+  lista.innerHTML = `<div style="text-align:center;padding:30px 20px;">
+    <div style="font-size:32px;margin-bottom:12px;">🗑</div>
+    <div style="font-size:15px;font-weight:600;color:#c0392b;">Eliminando registro...</div>
+    ${infoGasto}
+  </div>`;
+  document.getElementById('btnVerMas').classList.add('hidden');
+
   try {
-    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'eliminarGasto', fila })});
-    const data = await r.json();
-    if (data.ok) { registrosMostrados = 3; await cargarUltimosRegistros(); }
-    else { alert('Error: ' + (data.error||'')); }
-  } catch(e) { alert('Error de conexión'); }
+    const resp = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'eliminarGasto', fila })});
+    const data = await resp.json();
+    if (data.ok) {
+      registrosMostrados = 3;
+      await cargarUltimosRegistros();
+    } else { alert('Error: ' + (data.error||'')); await cargarUltimosRegistros(); }
+  } catch(e) { alert('Error de conexión'); await cargarUltimosRegistros(); }
 }
 
 // ─── ANÁLISIS ─────────────────────────────────
