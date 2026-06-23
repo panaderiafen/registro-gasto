@@ -1517,24 +1517,29 @@ function abrirModalObligacion(id) {
   document.getElementById('obligMonto').value = o ? (o.montoEstimado || '') : '';
   document.getElementById('obligObs').value = o ? (o.obs || '') : '';
   document.getElementById('obligAreaEsp') && (document.getElementById('obligAreaEsp').value = '');
-  // Reset multi-area selector
-  document.getElementById('obligSelAreaFilas').innerHTML = '';
-  if (o && o.multiArea && o.multiArea.length) {
-    o.multiArea.forEach(m => agregarFilaAreaOblig(m.area, m.monto));
-  } else {
-    agregarFilaAreaOblig();
-  }
-  document.getElementById('obligPArea1').value = o ? (o.pArea1||'') : '';
-  document.getElementById('obligPPct1').value = o ? (o.pPct1||'') : '';
-  document.getElementById('obligPArea2').value = o ? (o.pArea2||'') : '';
-  document.getElementById('obligPPct2').value = o ? (o.pPct2||'') : '';
-  document.getElementById('obligPArea3').value = o ? (o.pArea3||'') : '';
-  document.getElementById('obligPPct3').value = o ? (o.pPct3||'') : '';
   document.getElementById('sugerenciaProrrateo').style.display = 'none';
   document.getElementById('obligProrrateoSelector').classList.add('hidden');
   document.getElementById('btnEliminarOblig').classList.toggle('hidden', !o);
   onObligItemChange();
   mostrarCamposFrecuencia();
+
+  // Cargar datos de área DESPUÉS de onObligItemChange (que resetea los selectores)
+  if (o) {
+    if (o.area === 'MULTI' || (o.multiArea && o.multiArea.length)) {
+      document.getElementById('obligSelAreaFilas').innerHTML = '';
+      (o.multiArea||[]).forEach(m => agregarFilaAreaOblig(m.area, m.monto));
+      if (!o.multiArea || !o.multiArea.length) agregarFilaAreaOblig();
+    } else if (o.area === 'PRORRATEADO') {
+      document.getElementById('obligProrrateoSelector').classList.remove('hidden');
+      document.getElementById('obligPArea1').value = o.pArea1||'';
+      document.getElementById('obligPPct1').value = o.pPct1||'';
+      document.getElementById('obligPArea2').value = o.pArea2||'';
+      document.getElementById('obligPPct2').value = o.pPct2||'';
+      document.getElementById('obligPArea3').value = o.pArea3||'';
+      document.getElementById('obligPPct3').value = o.pPct3||'';
+    }
+  }
+
   document.getElementById('modalOblig').classList.add('show');
 }
 
