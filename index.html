@@ -1014,6 +1014,19 @@ function poblarSelectoresItem() {
   });
 }
 
+function checkReady() {
+  if (!selectedFile) { btnSubmit.disabled = true; return; }
+  if (!tipoMonto) { btnSubmit.disabled = true; return; }
+  const secciones = document.querySelectorAll('#itemsSecciones > div');
+  if (!secciones.length) { btnSubmit.disabled = true; return; }
+  let alguno = false;
+  secciones.forEach(s => {
+    const id = parseInt(s.id.replace('sec-item-',''));
+    if (getSeccionData(id)) alguno = true;
+  });
+  btnSubmit.disabled = !alguno;
+}
+
 function handleFileSelect(file) {
   if (!file) return;
   selectedFile = file;
