@@ -505,7 +505,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn-cancelar" onclick="cerrarModal('modalPago')">Cancelar</button>
-      <button class="btn-confirmar" onclick="confirmarPago()">✓ Confirmar pago</button>
+      <button class="btn-confirmar" id="btnConfirmarPago" onclick="confirmarPago()">✓ Confirmar pago</button>
     </div>
   </div>
 </div>
@@ -1357,10 +1357,11 @@ async function confirmarPago() {
   if (!monto || !fecha) { alert('Ingresa el monto y la fecha de pago'); return; }
 
   // Bloquear botón para evitar doble envío
-  const btnConfirmar = document.querySelector('#modalPago .btn-confirmar');
-  const textoOriginal = btnConfirmar.textContent;
-  btnConfirmar.disabled = true;
-  btnConfirmar.textContent = '⏳ Guardando...';
+  const btnConfirmar = document.getElementById('btnConfirmarPago');
+  const textoOriginal = btnConfirmar ? btnConfirmar.textContent : '';
+  if (btnConfirmar) { btnConfirmar.disabled = true; btnConfirmar.textContent = '⏳ Guardando...'; }
+
+  let imageData = null, fileName = null, mimeType = null;
   if (pagoFile) {
     imageData = await fileToBase64(pagoFile);
     fileName = pagoFile.name;
@@ -1411,13 +1412,11 @@ async function confirmarPago() {
       cerrarModal('modalPago');
       await cargarObligaciones();
     } else {
-      btnConfirmar.disabled = false;
-      btnConfirmar.textContent = textoOriginal;
+      if (btnConfirmar) { btnConfirmar.disabled = false; btnConfirmar.textContent = textoOriginal; }
       alert('Error al registrar pago: ' + (data.error || ''));
     }
   } catch(e) {
-    btnConfirmar.disabled = false;
-    btnConfirmar.textContent = textoOriginal;
+    if (btnConfirmar) { btnConfirmar.disabled = false; btnConfirmar.textContent = textoOriginal; }
     alert('Error de conexión');
   }
 }
