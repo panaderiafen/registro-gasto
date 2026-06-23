@@ -1234,13 +1234,14 @@ function fmtFecha(str) {
 
 function renderObligaciones() {
   const lista = document.getElementById('obligList');
-  if (!obligaciones.length) {
+  const visibles = obligaciones.filter(o => o.estado !== 'ARCHIVADO');
+  if (!visibles.length) {
     lista.innerHTML = '<div class="loading-text">No hay obligaciones registradas.<br>Agrega la primera con el botón de arriba.</div>';
     return;
   }
 
   // Ordenar: próximos primero, luego pendientes, luego pagados
-  const ordenadas = [...obligaciones].sort((a,b) => {
+  const ordenadas = [...visibles].sort((a,b) => {
     const ea = estadoOblig(a), eb = estadoOblig(b);
     const orden = { proximo: 0, pendiente: 1, pagado: 2 };
     if (orden[ea] !== orden[eb]) return orden[ea] - orden[eb];
@@ -1264,6 +1265,7 @@ function renderObligaciones() {
       <div class="oblig-fecha" onclick="clickOblig('${o.id}')" style="cursor:pointer;">${fechaStr}${ultPagoStr}</div>
       <div style="display:flex;gap:8px;margin-top:10px;border-top:1px solid #f0f0f0;padding-top:8px;">
         <button onclick="abrirModalObligacion('${o.id}')" style="flex:1;padding:7px;background:#f0f4ff;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#003a79;cursor:pointer;">✏️ Editar</button>
+        ${est === 'pagado' && o.frecuencia === 'variable' ? `<button onclick="archivarOblig('${o.id}')" style="flex:1;padding:7px;background:#f0fff4;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#155724;cursor:pointer;">📦 Archivar</button>` : ''}
         <button onclick="confirmarEliminarOblig('${o.id}','${o.nombre.replace(/'/g,"\\'")}')" style="flex:1;padding:7px;background:#fff0f0;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#c0392b;cursor:pointer;">🗑 Eliminar</button>
       </div>
     </div>`;
@@ -1274,6 +1276,15 @@ function renderObligaciones() {
   const badge = document.getElementById('badgeOblig');
   if (alertas > 0) { badge.textContent = alertas; badge.classList.add('show'); }
   else { badge.classList.remove('show'); }
+}
+
+async function archivarOblig(id) {
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'archivarObligacion', id }) });
+    const data = await r.json();
+    if (data.ok) await cargarObligaciones();
+    else alert('Error: ' + (data.error||''));
+  } catch(e) { alert('Error de conexión'); }
 }
 
 async function confirmarEliminarOblig(id, nombre) {
