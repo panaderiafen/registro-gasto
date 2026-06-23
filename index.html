@@ -1198,9 +1198,10 @@ function proximaFecha(oblig) {
 }
 
 function estadoOblig(oblig) {
-  const hoyStr = hoy();
+  const hoyD = new Date();
+  const hoyStr = `${hoyD.getFullYear()}-${String(hoyD.getMonth()+1).padStart(2,'0')}-${String(hoyD.getDate()).padStart(2,'0')}`;
   const mananaD = new Date(); mananaD.setDate(mananaD.getDate()+1);
-  const mananaStr = mananaD.toISOString().slice(0,10);
+  const mananaStr = `${mananaD.getFullYear()}-${String(mananaD.getMonth()+1).padStart(2,'0')}-${String(mananaD.getDate()).padStart(2,'0')}`;
   const prox = proximaFecha(oblig);
 
   if (oblig.estado === 'PAGADO' && oblig.frecuencia === 'variable') return 'pagado';
