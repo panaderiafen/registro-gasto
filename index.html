@@ -340,6 +340,11 @@
       </select>
       <button onclick="cargarAnalisis()" style="padding:8px 14px;background:#003a79;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">🔄</button>
     </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
+      <button id="btnDevengado" class="area-btn selected" onclick="setModoAnalisis('devengado')" style="font-size:12px;padding:8px;">📋 Devengado</button>
+      <button id="btnCaja" class="area-btn" onclick="setModoAnalisis('caja')" style="font-size:12px;padding:8px;">💵 Flujo de caja</button>
+    </div>
+    <div id="anModoHint" style="font-size:11px;color:#888;margin-top:6px;text-align:center;">Devengado: por fecha de compra · Caja: por fecha de pago</div>
   </div>
 
   <div id="anCargando" class="loading-text">Selecciona un período para ver el análisis</div>
@@ -471,6 +476,7 @@
 <div class="modal-overlay" id="modalPago">
   <div class="modal">
     <div class="modal-title" id="modalPagoTitulo">Registrar pago</div>
+    <div id="pagoDetalle" style="display:none;background:#f8f9fa;border-radius:8px;padding:10px 12px;margin-bottom:14px;border-left:3px solid #003a79;"></div>
     <div class="modal-field">
       <label>Monto pagado ($)</label>
       <div class="monto-input-wrap"><span>$</span><input type="number" id="pagoMonto" placeholder="0" min="0" style="padding-left:36px"/></div>
@@ -1296,15 +1302,38 @@ function clickOblig(id) {
   if (!o) return;
   const est = estadoOblig(o);
   if (est === 'proximo' || est === 'pendiente') {
-    // Abrir modal de pago
     obligPagoId = id;
     document.getElementById('modalPagoTitulo').textContent = `Registrar pago: ${o.nombre}`;
-    document.getElementById('pagoMonto').value = o.montoEstimado || '';
-    document.getElementById('pagoFecha').value = hoy();
+
+    // Precargar monto — si tiene multiArea sumar todos los montos
+    let montoPrec = o.montoEstimado || '';
+    if (o.multiArea && o.multiArea.length) {
+      montoPrec = o.multiArea.reduce((s,a) => s + (parseFloat(a.monto)||0), 0);
+    }
+    document.getElementById('pagoMonto').value = montoPrec;
+
+    // Precargar fecha de vencimiento como fecha de pago sugerida
+    const prox = proximaFecha(o);
+    document.getElementById('pagoFecha').value = prox || hoy();
     document.getElementById('pagoObs').value = '';
+
+    // Mostrar detalle de la obligación en el modal
+    const detalle = document.getElementById('pagoDetalle');
+    if (detalle) {
+      let html = '';
+      if (o.item) html += `<div style="font-size:13px;color:#555;margin-bottom:4px;">📋 <strong>${o.item}</strong></div>`;
+      if (o.multiArea && o.multiArea.length) {
+        html += `<div style="font-size:12px;color:#888;margin-bottom:2px;">Distribución:</div>`;
+        html += o.multiArea.map(a => `<div style="font-size:13px;color:#333;">• ${a.area}: $${parseFloat(a.monto).toLocaleString('es-CL')}</div>`).join('');
+      } else if (o.area && o.area !== 'MULTI') {
+        html += `<div style="font-size:13px;color:#555;">Área: <strong>${o.area}</strong></div>`;
+      }
+      if (o.obs) html += `<div style="font-size:12px;color:#888;margin-top:4px;">${o.obs}</div>`;
+      detalle.innerHTML = html;
+      detalle.style.display = html ? 'block' : 'none';
+    }
     document.getElementById('modalPago').classList.add('show');
   } else {
-    // Abrir modal edición
     abrirModalObligacion(id);
   }
 }
@@ -1680,6 +1709,17 @@ window.addEventListener('load', () => {
 });
 
 // ─── ANÁLISIS ─────────────────────────────────
+let modoAnalisis = 'devengado'; // 'devengado' o 'caja'
+
+function setModoAnalisis(modo) {
+  modoAnalisis = modo;
+  document.getElementById('btnDevengado').classList.toggle('selected', modo === 'devengado');
+  document.getElementById('btnCaja').classList.toggle('selected', modo === 'caja');
+  document.getElementById('anModoHint').textContent = modo === 'devengado'
+    ? 'Mostrando gastos por fecha de compra'
+    : 'Mostrando gastos por fecha de pago (flujo de caja real)';
+  cargarAnalisis();
+}
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const COLORES_AREA = { BOL:'#003a79', PAN:'#e67e22', CAF:'#8e44ad', PAS:'#27ae60', ADMIN:'#2980b9', VENTAS:'#c0392b', PRORRATEADO:'#7f8c8d' };
 
@@ -1745,7 +1785,11 @@ function renderAnalisis(gastos, mes, anio) {
   }
 
   const mesKeyActual = `${anio}-${mesStr}`;
-  const del_mes = gastos.filter(g => getMesKey(g.fecha) === mesKeyActual);
+  const del_mes = gastos.filter(g => {
+    // En modo caja usar fecha de pago si existe, sino fecha de compra
+    const fechaUsar = modoAnalisis === 'caja' && g.fechaPago ? g.fechaPago : g.fecha;
+    return getMesKey(fechaUsar) === mesKeyActual;
+  });
 
   const total = del_mes.reduce((s,g) => s+parseMonto(g.montoFinal), 0);
   const nReg = del_mes.length;
@@ -1794,7 +1838,8 @@ function renderAnalisis(gastos, mes, anio) {
   // EVOLUCIÓN MENSUAL
   const porMes = {};
   gastos.forEach(g => {
-    const key = getMesKey(g.fecha);
+    const fechaUsar = modoAnalisis === 'caja' && g.fechaPago ? g.fechaPago : g.fecha;
+    const key = getMesKey(fechaUsar);
     if (key) porMes[key]=(porMes[key]||0)+parseMonto(g.montoFinal);
   });
   const mesesOrden = Object.keys(porMes).sort().slice(-6);
