@@ -284,6 +284,21 @@
   </div>
   <button class="btn-agregar" onclick="abrirModalObligacion()">+ Agregar obligación</button>
   <div id="obligList"><div class="loading-text">Cargando obligaciones...</div></div>
+
+  <div class="records-section" style="margin-top:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleHistorialPagos()">
+      <div class="records-title" style="margin-bottom:0;">📜 Historial de pagos</div>
+      <span id="historialToggleIcon" style="font-size:13px;color:#003a79;font-weight:600;">Ver ▾</span>
+    </div>
+    <div id="historialPagosPanel" class="hidden" style="margin-top:10px;">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+        <select id="histMes" onchange="cargarHistorialPagos()" style="flex:1;font-size:13px;padding:6px 8px;border:1px solid #ddd;border-radius:6px;"></select>
+        <select id="histAnio" onchange="cargarHistorialPagos()" style="width:80px;font-size:13px;padding:6px 8px;border:1px solid #ddd;border-radius:6px;"></select>
+        <button onclick="verTodoHistorial()" style="padding:6px 10px;background:#f0f4ff;border:1px solid #003a79;border-radius:6px;font-size:12px;font-weight:600;color:#003a79;cursor:pointer;white-space:nowrap;">Ver todo</button>
+      </div>
+      <div id="historialPagosList"><div class="loading-text">Selecciona un período</div></div>
+    </div>
+  </div>
 </div>
 </div>
 
@@ -1464,6 +1479,11 @@ function renderObligaciones() {
     const fechaStr = v.fecha ? ` · Vence: ${fmtFecha(v.fecha)}` : '';
     const pagoStr = v.fechaPago ? ` · Pagado: ${fmtFecha(v.fechaPago)}` : '';
     const esVencida = est === 'vencida';
+    // "Eliminar" solo se ofrece si AÚN NO está pagado — una vez pagado, borrar la fila
+    // de Vencimientos es definitivo (no hay papelera), así que se protege desde la UI.
+    const btnEditar = v.plantillaId ? `<button onclick="abrirModalObligacion('${v.plantillaId}')" style="flex:1;padding:7px;background:#f0f4ff;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#003a79;cursor:pointer;">✏️ Editar regla</button>` : '';
+    const btnEliminar = v.estado !== 'PAGADO' ? `<button onclick="confirmarEliminarVencimiento('${v.id}','${v.nombre.replace(/'/g,"\\'")}')" style="flex:1;padding:7px;background:#fff0f0;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#c0392b;cursor:pointer;">🗑 Eliminar</button>` : '';
+    const accionesHtml = (btnEditar || btnEliminar) ? `<div style="display:flex;gap:8px;margin-top:10px;border-top:1px solid #f0f0f0;padding-top:8px;">${btnEditar}${btnEliminar}</div>` : '';
     return `<div class="oblig-item ${esVencida ? 'alerta' : est === 'proximo' ? 'alerta' : est === 'pagado' ? 'pagado' : ''}" style="${esVencida ? 'border-left-color:#c0392b;background:#fff5f5;' : ''}">
       <div class="oblig-header" onclick="clickVencimiento('${v.id}')" style="cursor:pointer;">
         <div class="oblig-nombre">${v.nombre}</div>
@@ -1471,10 +1491,7 @@ function renderObligaciones() {
       </div>
       <div class="oblig-detalle" onclick="clickVencimiento('${v.id}')" style="cursor:pointer;">${v.obs || ''}${montoStr}</div>
       <div class="oblig-fecha" onclick="clickVencimiento('${v.id}')" style="cursor:pointer;">${fechaStr}${pagoStr}</div>
-      <div style="display:flex;gap:8px;margin-top:10px;border-top:1px solid #f0f0f0;padding-top:8px;">
-        ${v.plantillaId ? `<button onclick="abrirModalObligacion('${v.plantillaId}')" style="flex:1;padding:7px;background:#f0f4ff;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#003a79;cursor:pointer;">✏️ Editar regla</button>` : ''}
-        <button onclick="confirmarEliminarVencimiento('${v.id}','${v.nombre.replace(/'/g,"\\'")}')" style="flex:1;padding:7px;background:#fff0f0;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#c0392b;cursor:pointer;">🗑 Eliminar</button>
-      </div>
+      ${accionesHtml}
     </div>`;
   }).join('');
 
@@ -1483,6 +1500,77 @@ function renderObligaciones() {
   const badge = document.getElementById('badgeOblig');
   if (alertas > 0) { badge.textContent = alertas; badge.classList.add('show'); }
   else { badge.classList.remove('show'); }
+}
+
+// ─── HISTORIAL DE PAGOS (colapsable, dentro de Obligaciones) ──
+let historialInicializado = false;
+
+function toggleHistorialPagos() {
+  const panel = document.getElementById('historialPagosPanel');
+  const icon = document.getElementById('historialToggleIcon');
+  const vaAAbrir = panel.classList.contains('hidden');
+  panel.classList.toggle('hidden');
+  icon.textContent = vaAAbrir ? 'Ocultar ▴' : 'Ver ▾';
+  if (vaAAbrir && !historialInicializado) {
+    historialInicializado = true;
+    initSelectorHistorial();
+    cargarHistorialPagos();
+  }
+}
+
+function initSelectorHistorial() {
+  const selMes = document.getElementById('histMes');
+  const selAnio = document.getElementById('histAnio');
+  const hoyD = new Date();
+  MESES.forEach((m,i) => {
+    const opt = document.createElement('option');
+    opt.value = i+1; opt.textContent = m;
+    if (i === hoyD.getMonth()) opt.selected = true;
+    selMes.appendChild(opt);
+  });
+  for (let y = hoyD.getFullYear(); y >= hoyD.getFullYear()-2; y--) {
+    const opt = document.createElement('option');
+    opt.value = y; opt.textContent = y;
+    if (y === hoyD.getFullYear()) opt.selected = true;
+    selAnio.appendChild(opt);
+  }
+}
+
+async function cargarHistorialPagos() {
+  const mes = parseInt(document.getElementById('histMes').value);
+  const anio = parseInt(document.getElementById('histAnio').value);
+  await pedirHistorial({ mes, anio });
+}
+
+async function verTodoHistorial() {
+  await pedirHistorial({});
+}
+
+async function pedirHistorial(filtro) {
+  const lista = document.getElementById('historialPagosList');
+  lista.innerHTML = '<div class="loading-text">Cargando...</div>';
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getHistorialPagos', ...filtro }) });
+    const data = await r.json();
+    const historial = data.historial || [];
+    if (!historial.length) {
+      lista.innerHTML = '<div class="empty-records">Sin pagos registrados en este período.</div>';
+      return;
+    }
+    lista.innerHTML = historial.map(v => {
+      const monto = v.montoPago && !isNaN(parseInt(v.montoPago)) ? '$'+parseInt(v.montoPago).toLocaleString('es-CL') : '';
+      const areaStr = (v.area && v.area !== 'MULTI' && v.area !== 'PRORRATEADO') ? ' · '+v.area : '';
+      return `<div class="record-item">
+        <div style="width:36px;height:36px;border-radius:6px;background:#f0fff4;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">✓</div>
+        <div class="record-info">
+          <div class="record-name">${v.nombre}</div>
+          <div class="record-date">${fmtFecha(v.fechaPago)}${monto ? ' · '+monto : ''}${areaStr}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    lista.innerHTML = '<div class="loading-text">Error al cargar.</div>';
+  }
 }
 
 async function confirmarEliminarVencimiento(id, nombre) {
@@ -1540,6 +1628,10 @@ function clickVencimiento(id) {
     if (v.multiArea && v.multiArea.length) {
       html += `<div style="font-size:12px;color:#888;margin-bottom:2px;">Distribución:</div>`;
       html += v.multiArea.map(a => `<div style="font-size:13px;color:#333;">• ${a.area}: $${parseFloat(a.monto).toLocaleString('es-CL')}</div>`).join('');
+    } else if (v.area === 'PRORRATEADO' && v.pArea1) {
+      html += `<div style="font-size:12px;color:#888;margin-bottom:2px;">Distribución (se calcula sobre el monto que ingreses):</div>`;
+      const partes = [[v.pArea1,v.pPct1],[v.pArea2,v.pPct2],[v.pArea3,v.pPct3]].filter(([a,p]) => a && p);
+      html += partes.map(([a,p]) => `<div style="font-size:13px;color:#333;">• ${a}: ${p}%</div>`).join('');
     } else if (v.area && v.area !== 'MULTI') {
       html += `<div style="font-size:13px;color:#555;">Área: <strong>${v.area}</strong></div>`;
     }
