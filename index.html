@@ -278,6 +278,10 @@
 <div id="sec-obligaciones" class="section">
 <div class="container">
   <div id="alertaBanner"></div>
+  <div class="card" style="padding:16px;">
+    <div id="panoramaMesTitulo" style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:10px;">📅 Panorama del mes</div>
+    <div id="panoramaMes"><div style="font-size:13px;color:#aaa;text-align:center;padding:6px 0;">Cargando...</div></div>
+  </div>
   <button class="btn-agregar" onclick="abrirModalObligacion()">+ Agregar obligación</button>
   <div id="obligList"><div class="loading-text">Cargando obligaciones...</div></div>
 </div>
@@ -1349,9 +1353,55 @@ async function cargarObligaciones() {
     plantillas = dp.plantillas || [];
     renderObligaciones();
     revisarAlertas();
+    renderPanoramaMes();
   } catch(e) {
     document.getElementById('obligList').innerHTML = '<div class="loading-text">Error al cargar. Revisa tu conexión.</div>';
   }
+}
+
+const MESES_LARGO = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+// Panorama informativo del mes calendario actual: TODAS las obligaciones activas con
+// su próxima fecha, sin importar si ya están en ventana de alerta (3 días) o no.
+// Es solo referencia — no tiene botones ni acciones.
+function renderPanoramaMes() {
+  const cont = document.getElementById('panoramaMes');
+  if (!cont) return;
+  const hoyD = new Date();
+  const mesActual = hoyD.getMonth(), anioActual = hoyD.getFullYear();
+
+  const tituloEl = document.getElementById('panoramaMesTitulo');
+  if (tituloEl) tituloEl.textContent = `📅 Panorama de ${MESES_LARGO[mesActual]}`;
+
+  const items = plantillas
+    .filter(p => p.estado === 'ACTIVA' && p.proximaFecha)
+    .filter(p => {
+      const f = new Date(p.proximaFecha + 'T00:00:00');
+      return f.getFullYear() === anioActual && f.getMonth() === mesActual;
+    })
+    .sort((a,b) => a.proximaFecha.localeCompare(b.proximaFecha));
+
+  if (!items.length) {
+    cont.innerHTML = '<div style="font-size:13px;color:#aaa;text-align:center;padding:6px 0;">Sin obligaciones activas este mes.</div>';
+    return;
+  }
+
+  const hoyStr = hoy();
+  cont.innerHTML = items.map(p => {
+    const d = new Date(p.proximaFecha + 'T00:00:00');
+    const dia = String(d.getDate()).padStart(2,'0');
+    const mesAbrev = MESES_LARGO[d.getMonth()].slice(0,3);
+    let colorDot = '#ccc';
+    if (p.proximaFecha < hoyStr) colorDot = '#e74c3c';
+    else if (p.proximaFecha === hoyStr) colorDot = '#e67e22';
+    const montoStr = p.montoEstimado && !isNaN(parseInt(p.montoEstimado)) ? `<span style="color:#aaa;font-size:11px;white-space:nowrap;">$${parseInt(p.montoEstimado).toLocaleString('es-CL')}</span>` : '';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f5f5f5;">
+      <span style="width:7px;height:7px;border-radius:50%;background:${colorDot};flex-shrink:0;"></span>
+      <span style="flex:1;font-size:13px;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.nombre}</span>
+      ${montoStr}
+      <span style="font-size:13px;font-weight:700;color:#003a79;min-width:44px;text-align:right;">${dia} ${mesAbrev}</span>
+    </div>`;
+  }).join('');
 }
 
 // El backend ya calcula y guarda el estado real (PENDIENTE/VENCIDA/PAGADO) de cada vencimiento.
