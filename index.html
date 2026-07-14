@@ -698,22 +698,6 @@ async function cargarItems() {
   }
 }
 
-function poblarSelectoresItem() {
-  ['itemGasto','obligItem'].forEach(selId => {
-    const sel = document.getElementById(selId);
-    if (!sel) return;
-    const val = sel.value;
-    const placeholder = selId === 'itemGasto' ? '— Selecciona un ítem —' : '— Selecciona ítem —';
-    sel.innerHTML = `<option value="">${placeholder}</option>`;
-    ITEMS.forEach(i => {
-      const opt = document.createElement('option');
-      opt.value = i.item; opt.textContent = i.item;
-      sel.appendChild(opt);
-    });
-    if (val) sel.value = val;
-  });
-}
-
 let toastTimer = null;
 function showToast(msg, tipo='success') {
   const t = document.getElementById('toast');
@@ -860,10 +844,11 @@ function agregarSeccionItem() {
   div.innerHTML = `
     ${id > 1 ? `<button type="button" onclick="eliminarSeccion(${id})" style="position:absolute;top:10px;right:10px;background:none;border:none;color:#e74c3c;font-size:20px;cursor:pointer;">×</button>` : ''}
     <label style="font-size:13px;font-weight:600;color:#444;display:block;margin-bottom:8px;">Ítem de gasto</label>
-    <select id="itemSel-${id}" onchange="onItemChange(${id})" style="width:100%;padding:12px 14px;border:1px solid #ddd;border-radius:8px;font-size:15px;margin-bottom:8px;">
+    <select id="itemSel-${id}" onchange="onItemChange(${id})" style="width:100%;padding:12px 14px;border:1px solid #ddd;border-radius:8px;font-size:15px;margin-bottom:4px;">
       <option value="">— Selecciona un ítem —</option>
-      ${ITEMS.map(i=>`<option value="${i.item}">${i.item}</option>`).join('')}
+      ${itemsParaRegistrar().map(i=>`<option value="${i.item}">${i.item}</option>`).join('')}
     </select>
+    <div style="font-size:11px;color:#aaa;margin-bottom:8px;">Arriendo, luz, IVA y demás obligaciones recurrentes se pagan desde la pestaña 📅 Obligaciones.</div>
     <div id="infoGrid-${id}" style="display:none;" class="info-grid">
       <div class="info-item"><div class="info-label">Categoría</div><div class="info-value" id="infoCat-${id}">—</div></div>
       <div class="info-item"><div class="info-label">Tipo</div><div class="info-value" id="infoTipo-${id}">—</div></div>
@@ -1086,8 +1071,17 @@ function recalcularTotal() {
   checkReady();
 }
 
+// Ítems que pertenecen a una obligación recurrente activa (arriendo, luz, IVA, etc.)
+// no se ofrecen en el selector de "Registrar" — se pagan desde la pestaña Obligaciones,
+// que ya genera el gasto automáticamente. Sí se siguen mostrando en el selector de
+// ítem dentro del modal de Obligaciones (obligItem), porque ahí es donde corresponden.
+function itemsParaRegistrar() {
+  return ITEMS.filter(i => !i.esObligacionRecurrente);
+}
+
 function poblarSelectoresItem() {
-  // Solo poblar selector de obligaciones
+  // Solo poblar selector de obligaciones — ahí SÍ deben verse todos los ítems, incluidos
+  // los de obligaciones recurrentes (es donde se define/edita esa relación).
   const selOblig = document.getElementById('obligItem');
   if (!selOblig) return;
   const valOblig = selOblig.value;
@@ -1099,11 +1093,11 @@ function poblarSelectoresItem() {
   });
   if (valOblig) selOblig.value = valOblig;
 
-  // Repoblar selectores de ítems en secciones existentes
+  // Repoblar selectores de ítems en Registrar — estos SÍ se filtran
   document.querySelectorAll('[id^="itemSel-"]').forEach(sel => {
     const val = sel.value;
     sel.innerHTML = '<option value="">— Selecciona un ítem —</option>';
-    ITEMS.forEach(i => {
+    itemsParaRegistrar().forEach(i => {
       const opt = document.createElement('option');
       opt.value = i.item; opt.textContent = i.item;
       sel.appendChild(opt);
