@@ -553,6 +553,7 @@
       <button class="btn-cancelar" onclick="cerrarModal('modalOblig')">Cancelar</button>
       <button class="btn-confirmar" id="btnGuardarOblig" onclick="guardarObligacion()">Guardar</button>
     </div>
+    <button class="btn-eliminar hidden" id="btnArchivarOblig" onclick="archivarObligacionActual()" style="background:#fff8e1;color:#856404;">📦 Archivar (deja de generar nuevos vencimientos)</button>
     <button class="btn-eliminar hidden" id="btnEliminarOblig" onclick="eliminarObligacion()">🗑 Eliminar esta obligación</button>
   </div>
 </div>
@@ -1311,9 +1312,10 @@ function renderRecords() {
 }
 
 // ─── OBLIGACIONES ─────────────────────────────
-let obligaciones = [];
-let obligEditId = null;
-let obligPagoId = null;
+let vencimientos = [];  // ocurrencias reales (lo que se muestra como tarjetas)
+let plantillas = [];    // reglas recurrentes/fecha fija (para el modal de edición)
+let obligEditId = null;       // id de PLANTILLA en edición
+let vencimientoPagoId = null; // id de VENCIMIENTO a pagar
 let pagoFile = null;
 
 // Comprobante de pago
@@ -1337,9 +1339,14 @@ document.getElementById('pagoFileInputGal').addEventListener('change', e => hand
 async function cargarObligaciones() {
   document.getElementById('obligList').innerHTML = '<div class="loading-text">Cargando...</div>';
   try {
-    const r = await fetch(BACKEND_URL, { method: 'POST', body: JSON.stringify({ action: 'getObligaciones' }) });
-    const data = await r.json();
-    obligaciones = data.obligaciones || [];
+    const [rv, rp] = await Promise.all([
+      fetch(BACKEND_URL, { method: 'POST', body: JSON.stringify({ action: 'getVencimientos' }) }),
+      fetch(BACKEND_URL, { method: 'POST', body: JSON.stringify({ action: 'getPlantillas' }) })
+    ]);
+    const dv = await rv.json();
+    const dp = await rp.json();
+    vencimientos = dv.vencimientos || [];
+    plantillas = dp.plantillas || [];
     renderObligaciones();
     revisarAlertas();
   } catch(e) {
@@ -1347,66 +1354,24 @@ async function cargarObligaciones() {
   }
 }
 
+// El backend ya calcula y guarda el estado real (PENDIENTE/VENCIDA/PAGADO) de cada vencimiento.
+// Esta función solo agrega el matiz visual "próximo" (hoy/mañana) para el badge, sin recalcular fechas.
+function badgeVisual(v) {
+  if (v.estado === 'PAGADO') return 'pagado';
+  if (v.estado === 'VENCIDA') return 'vencida';
+  const hoyStr = hoy();
+  const mD = new Date(); mD.setDate(mD.getDate()+1);
+  const mananaStr = `${mD.getFullYear()}-${String(mD.getMonth()+1).padStart(2,'0')}-${String(mD.getDate()).padStart(2,'0')}`;
+  if (v.fecha === hoyStr || v.fecha === mananaStr) return 'proximo';
+  return 'pendiente';
+}
+
 function hoy() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
-function proximaFecha(oblig) {
-  const hoyD = new Date(); hoyD.setHours(0,0,0,0);
-  const yr = hoyD.getFullYear(), mo = hoyD.getMonth(), dia = hoyD.getDate();
-
-  if (oblig.frecuencia === 'variable') {
-    const fe = String(oblig.fechaEsp||'');
-    if (!fe) return '';
-    // Si es Date string de Sheets, convertir a yyyy-mm-dd
-    if (!fe.match(/^\d{4}-\d{2}-\d{2}/)) {
-      const d = new Date(fe);
-      if (!isNaN(d.getTime())) {
-        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-      }
-    }
-    return fe.slice(0,10);
-  }
-  if (oblig.frecuencia === 'mensual_dia') {
-    const d = parseInt(oblig.dia);
-    let fecha = new Date(yr, mo, d);
-    if (fecha < hoyD) fecha = new Date(yr, mo+1, d);
-    return fecha.toISOString().slice(0,10);
-  }
-  if (oblig.frecuencia === 'mensual_ultimo') {
-    let fecha = new Date(yr, mo+1, 0); // último del mes actual
-    if (fecha < hoyD) fecha = new Date(yr, mo+2, 0);
-    return fecha.toISOString().slice(0,10);
-  }
-  if (oblig.frecuencia === 'quincenal') {
-    const op1 = new Date(yr, mo, 1);
-    const op2 = new Date(yr, mo, 15);
-    const op3 = new Date(yr, mo+1, 1);
-    const op4 = new Date(yr, mo+1, 15);
-    for (const f of [op1, op2, op3, op4]) { if (f >= hoyD) return f.toISOString().slice(0,10); }
-  }
-  return '';
-}
-
-function estadoOblig(oblig) {
-  const hoyD = new Date();
-  const hoyStr = `${hoyD.getFullYear()}-${String(hoyD.getMonth()+1).padStart(2,'0')}-${String(hoyD.getDate()).padStart(2,'0')}`;
-  const mananaD = new Date(); mananaD.setDate(mananaD.getDate()+1);
-  const mananaStr = `${mananaD.getFullYear()}-${String(mananaD.getMonth()+1).padStart(2,'0')}-${String(mananaD.getDate()).padStart(2,'0')}`;
-  const prox = proximaFecha(oblig);
-
-  if (oblig.estado === 'PAGADO' && oblig.frecuencia === 'variable') return 'pagado';
-  // Para recurrentes, si está pagado pero la próxima fecha ya pasó o es hoy → vuelve a pendiente
-  if (oblig.estado === 'PAGADO') {
-    if (oblig.ultimoPago && prox > oblig.ultimoPago) return 'pendiente';
-    return 'pagado';
-  }
-  if (prox && prox < hoyStr) return 'vencida'; // ya venció
-  if (prox === hoyStr || prox === mananaStr) return 'proximo';
-  return 'pendiente';
-}
-
+// Calcula la primera ocurrencia de la obligación con fecha >= refDate (Date, hora 00:00)
 function fmtFecha(str) {
   if (!str) return '';
   const s = String(str);
@@ -1425,126 +1390,114 @@ function fmtFecha(str) {
   return s;
 }
 
+// Cada vencimiento es ya una tarjeta lista para mostrar — el backend entrega
+// directamente la fecha y el estado real (PENDIENTE/VENCIDA/PAGADO), sin que
+// el frontend tenga que recalcular nada.
 function renderObligaciones() {
   const lista = document.getElementById('obligList');
-  const visibles = obligaciones.filter(o => o.estado !== 'ARCHIVADO');
-  if (!visibles.length) {
+  if (!vencimientos.length) {
     lista.innerHTML = '<div class="loading-text">No hay obligaciones registradas.<br>Agrega la primera con el botón de arriba.</div>';
     return;
   }
 
-  // Ordenar: próximos primero, luego pendientes, luego pagados
-  const ordenadas = [...visibles].sort((a,b) => {
-    const ea = estadoOblig(a), eb = estadoOblig(b);
-    const orden = { vencida: 0, proximo: 1, pendiente: 2, pagado: 3 };
+  const orden = { vencida: 0, proximo: 1, pendiente: 2, pagado: 3 };
+  const ordenadas = [...vencimientos].sort((a,b) => {
+    const ea = badgeVisual(a), eb = badgeVisual(b);
     if (orden[ea] !== orden[eb]) return orden[ea] - orden[eb];
-    return (proximaFecha(a)||'').localeCompare(proximaFecha(b)||'');
+    return (a.fecha||'').localeCompare(b.fecha||'');
   });
 
-  lista.innerHTML = ordenadas.map(o => {
-    const est = estadoOblig(o);
-    const prox = proximaFecha(o);
+  lista.innerHTML = ordenadas.map(v => {
+    const est = badgeVisual(v);
     const badgeLabel = est === 'vencida' ? '🔴 VENCIDA' : est === 'proximo' ? '⚠️ HOY/MAÑANA' : est === 'pagado' ? '✓ PAGADO' : 'PENDIENTE';
-    const badgeClass = est;
-    const montoStr = o.montoEstimado && !isNaN(parseInt(o.montoEstimado)) ? ' · $'+parseInt(o.montoEstimado).toLocaleString('es-CL') : '';
-    const fechaStr = prox ? ` · Vence: ${fmtFecha(prox)}` : '';
-    const ultPagoStr = o.ultimoPago ? ` · Último pago: ${fmtFecha(o.ultimoPago)}` : '';
+    const montoStr = v.montoEstimado && !isNaN(parseInt(v.montoEstimado)) ? ' · $'+parseInt(v.montoEstimado).toLocaleString('es-CL') : '';
+    const fechaStr = v.fecha ? ` · Vence: ${fmtFecha(v.fecha)}` : '';
+    const pagoStr = v.fechaPago ? ` · Pagado: ${fmtFecha(v.fechaPago)}` : '';
     const esVencida = est === 'vencida';
     return `<div class="oblig-item ${esVencida ? 'alerta' : est === 'proximo' ? 'alerta' : est === 'pagado' ? 'pagado' : ''}" style="${esVencida ? 'border-left-color:#c0392b;background:#fff5f5;' : ''}">
-      <div class="oblig-header" onclick="clickOblig('${o.id}')" style="cursor:pointer;">
-        <div class="oblig-nombre">${o.nombre}</div>
-        <span class="oblig-badge ${badgeClass}">${badgeLabel}</span>
+      <div class="oblig-header" onclick="clickVencimiento('${v.id}')" style="cursor:pointer;">
+        <div class="oblig-nombre">${v.nombre}</div>
+        <span class="oblig-badge ${est}">${badgeLabel}</span>
       </div>
-      <div class="oblig-detalle" onclick="clickOblig('${o.id}')" style="cursor:pointer;">${o.obs || ''}${montoStr}</div>
-      <div class="oblig-fecha" onclick="clickOblig('${o.id}')" style="cursor:pointer;">${fechaStr}${ultPagoStr}</div>
+      <div class="oblig-detalle" onclick="clickVencimiento('${v.id}')" style="cursor:pointer;">${v.obs || ''}${montoStr}</div>
+      <div class="oblig-fecha" onclick="clickVencimiento('${v.id}')" style="cursor:pointer;">${fechaStr}${pagoStr}</div>
       <div style="display:flex;gap:8px;margin-top:10px;border-top:1px solid #f0f0f0;padding-top:8px;">
-        <button onclick="abrirModalObligacion('${o.id}')" style="flex:1;padding:7px;background:#f0f4ff;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#003a79;cursor:pointer;">✏️ Editar</button>
-        ${est === 'pagado' && o.frecuencia === 'variable' ? `<button onclick="archivarOblig('${o.id}')" style="flex:1;padding:7px;background:#f0fff4;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#155724;cursor:pointer;">📦 Archivar</button>` : ''}
-        <button onclick="confirmarEliminarOblig('${o.id}','${o.nombre.replace(/'/g,"\\'")}')" style="flex:1;padding:7px;background:#fff0f0;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#c0392b;cursor:pointer;">🗑 Eliminar</button>
+        ${v.plantillaId ? `<button onclick="abrirModalObligacion('${v.plantillaId}')" style="flex:1;padding:7px;background:#f0f4ff;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#003a79;cursor:pointer;">✏️ Editar regla</button>` : ''}
+        <button onclick="confirmarEliminarVencimiento('${v.id}','${v.nombre.replace(/'/g,"\\'")}')" style="flex:1;padding:7px;background:#fff0f0;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#c0392b;cursor:pointer;">🗑 Eliminar</button>
       </div>
     </div>`;
   }).join('');
 
-  // Badge en pestaña — incluir vencidas y próximas
-  const alertas = obligaciones.filter(o => o.estado !== 'ARCHIVADO' && (estadoOblig(o) === 'proximo' || estadoOblig(o) === 'vencida')).length;
+  // Badge en pestaña — cuenta cada vencimiento vencido/próximo
+  const alertas = vencimientos.filter(v => { const e = badgeVisual(v); return e === 'proximo' || e === 'vencida'; }).length;
   const badge = document.getElementById('badgeOblig');
   if (alertas > 0) { badge.textContent = alertas; badge.classList.add('show'); }
   else { badge.classList.remove('show'); }
 }
 
-async function archivarOblig(id) {
+async function confirmarEliminarVencimiento(id, nombre) {
+  if (!confirm(`¿Eliminar este vencimiento "${nombre}"?\n\n(Esto no borra la regla recurrente, solo esta ocurrencia puntual)`)) return;
   try {
-    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'archivarObligacion', id }) });
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'eliminarVencimiento', id }) });
     const data = await r.json();
-    if (data.ok) { showToast('✅ Obligación archivada'); await cargarObligaciones(); }
-    else alert('Error: ' + (data.error||''));
-  } catch(e) { alert('Error de conexión'); }
-}
-
-async function confirmarEliminarOblig(id, nombre) {
-  if (!confirm(`¿Eliminar la obligación "${nombre}"?`)) return;
-  try {
-    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'deleteObligacion', id }) });
-    const data = await r.json();
-    if (data.ok) { showToast('✅ Obligación eliminada'); await cargarObligaciones(); }
+    if (data.ok) { showToast('✅ Vencimiento eliminado'); await cargarObligaciones(); }
     else alert('Error: ' + (data.error||''));
   } catch(e) { alert('Error de conexión'); }
 }
 
 function revisarAlertas() {
-  const proximas = obligaciones.filter(o => o.estado !== 'ARCHIVADO' && (estadoOblig(o) === 'proximo' || estadoOblig(o) === 'vencida'));
+  const itemsAlerta = vencimientos
+    .filter(v => { const e = badgeVisual(v); return e === 'proximo' || e === 'vencida'; })
+    .sort((a,b) => (a.fecha||'').localeCompare(b.fecha||''));
+
   const banner = document.getElementById('alertaBanner');
-  if (!proximas.length) { banner.innerHTML = ''; return; }
+  if (!itemsAlerta.length) { banner.innerHTML = ''; return; }
   banner.innerHTML = `<div class="alerta-banner">
     <div class="alerta-banner-titulo">⚠️ Obligaciones que requieren atención</div>
-    ${proximas.map(o => {
-      const est = estadoOblig(o);
+    ${itemsAlerta.map(v => {
+      const est = badgeVisual(v);
       const etq = est === 'vencida' ? '🔴 VENCIDA' : '⚠️ HOY/MAÑANA';
-      const monto = o.montoEstimado && !isNaN(parseInt(o.montoEstimado)) ? ' · $'+parseInt(o.montoEstimado).toLocaleString('es-CL') : '';
-      return '<div class="alerta-banner-item" onclick="clickOblig(\''+o.id+'\' )" style="cursor:pointer">📌 <strong>'+o.nombre+'</strong> — '+etq+': '+fmtFecha(proximaFecha(o))+monto+'</div>';
+      const monto = v.montoEstimado && !isNaN(parseInt(v.montoEstimado)) ? ' · $'+parseInt(v.montoEstimado).toLocaleString('es-CL') : '';
+      return '<div class="alerta-banner-item" onclick="clickVencimiento(\''+v.id+'\')" style="cursor:pointer">📌 <strong>'+v.nombre+'</strong> — '+etq+': '+fmtFecha(v.fecha)+monto+'</div>';
     }).join('')}
   </div>`;
 }
 
-function clickOblig(id) {
-  const o = obligaciones.find(x => x.id === id);
-  if (!o) return;
-  const est = estadoOblig(o);
-  if (est === 'proximo' || est === 'pendiente' || est === 'vencida') {
-    obligPagoId = id;
-    document.getElementById('modalPagoTitulo').textContent = `Registrar pago: ${o.nombre}`;
+function clickVencimiento(id) {
+  const v = vencimientos.find(x => x.id === id);
+  if (!v) return;
+  if (v.estado === 'PAGADO') return; // ya está pagado, no hay acción de pago
 
-    // Precargar monto — si tiene multiArea sumar todos los montos
-    let montoPrec = o.montoEstimado || '';
-    if (o.multiArea && o.multiArea.length) {
-      montoPrec = o.multiArea.reduce((s,a) => s + (parseFloat(a.monto)||0), 0);
-    }
-    document.getElementById('pagoMonto').value = montoPrec;
+  vencimientoPagoId = id;
+  document.getElementById('modalPagoTitulo').textContent = `Registrar pago: ${v.nombre}`;
 
-    // Precargar fecha de vencimiento como fecha de pago sugerida
-    const prox = proximaFecha(o);
-    document.getElementById('pagoFecha').value = prox || hoy();
-    document.getElementById('pagoObs').value = '';
-
-    // Mostrar detalle de la obligación en el modal
-    const detalle = document.getElementById('pagoDetalle');
-    if (detalle) {
-      let html = '';
-      if (o.item) html += `<div style="font-size:13px;color:#555;margin-bottom:4px;">📋 <strong>${o.item}</strong></div>`;
-      if (o.multiArea && o.multiArea.length) {
-        html += `<div style="font-size:12px;color:#888;margin-bottom:2px;">Distribución:</div>`;
-        html += o.multiArea.map(a => `<div style="font-size:13px;color:#333;">• ${a.area}: $${parseFloat(a.monto).toLocaleString('es-CL')}</div>`).join('');
-      } else if (o.area && o.area !== 'MULTI') {
-        html += `<div style="font-size:13px;color:#555;">Área: <strong>${o.area}</strong></div>`;
-      }
-      if (o.obs) html += `<div style="font-size:12px;color:#888;margin-top:4px;">${o.obs}</div>`;
-      detalle.innerHTML = html;
-      detalle.style.display = html ? 'block' : 'none';
-    }
-    document.getElementById('modalPago').classList.add('show');
-  } else {
-    abrirModalObligacion(id);
+  // Precargar monto — si tiene multiArea sumar todos los montos
+  let montoPrec = v.montoEstimado || '';
+  if (v.multiArea && v.multiArea.length) {
+    montoPrec = v.multiArea.reduce((s,a) => s + (parseFloat(a.monto)||0), 0);
   }
+  document.getElementById('pagoMonto').value = montoPrec;
+  document.getElementById('pagoFecha').value = hoy();
+  document.getElementById('pagoObs').value = '';
+
+  const detalle = document.getElementById('pagoDetalle');
+  if (detalle) {
+    let html = '';
+    if (v.item) html += `<div style="font-size:13px;color:#555;margin-bottom:4px;">📋 <strong>${v.item}</strong></div>`;
+    if (badgeVisual(v) === 'vencida') {
+      html += `<div style="font-size:13px;color:#c0392b;font-weight:700;margin-bottom:6px;">⚠️ Vencida desde ${fmtFecha(v.fecha)}</div>`;
+    }
+    if (v.multiArea && v.multiArea.length) {
+      html += `<div style="font-size:12px;color:#888;margin-bottom:2px;">Distribución:</div>`;
+      html += v.multiArea.map(a => `<div style="font-size:13px;color:#333;">• ${a.area}: $${parseFloat(a.monto).toLocaleString('es-CL')}</div>`).join('');
+    } else if (v.area && v.area !== 'MULTI') {
+      html += `<div style="font-size:13px;color:#555;">Área: <strong>${v.area}</strong></div>`;
+    }
+    if (v.obs) html += `<div style="font-size:12px;color:#888;margin-top:4px;">${v.obs}</div>`;
+    detalle.innerHTML = html;
+    detalle.style.display = html ? 'block' : 'none';
+  }
+  document.getElementById('modalPago').classList.add('show');
 }
 
 async function confirmarPago() {
@@ -1565,24 +1518,20 @@ async function confirmarPago() {
     mimeType = pagoFile.type;
   }
 
-  // Obtener datos de la obligación para registrar en hoja principal
-  const o = obligaciones.find(x => x.id === obligPagoId);
-  const fechaFmt = fecha.split('-').reverse().join('/'); // yyyy-mm-dd → dd/mm/yyyy
-
   try {
     const r = await fetch(BACKEND_URL, { method: 'POST', body: JSON.stringify({
-      action: 'registrarPago',
-      id: obligPagoId,
+      action: 'registrarPagoVencimiento',
+      id: vencimientoPagoId,
       montoPago: monto,
       fechaPago: fecha,
       obsPago: obs,
-      imageData, fileName, mimeType,
-      registrarGasto: false
+      imageData, fileName, mimeType
     })});
     const data = await r.json();
     if (data.ok) {
       resetModalPago();
       cerrarModal('modalPago');
+      showToast('✅ Pago registrado');
       await cargarObligaciones();
     } else {
       if (btnConfirmar) { btnConfirmar.disabled = false; btnConfirmar.textContent = textoOriginal; }
@@ -1738,7 +1687,7 @@ function onObligItemChange() {
 
 function abrirModalObligacion(id) {
   obligEditId = id || null;
-  const o = id ? obligaciones.find(x => x.id === id) : null;
+  const o = id ? plantillas.find(x => x.id === id) : null;
   document.getElementById('modalObligTitulo').textContent = o ? 'Editar obligación' : 'Nueva obligación';
   document.getElementById('obligNombre').value = o ? o.nombre : '';
   document.getElementById('obligItem').value = o ? (o.item||'') : '';
@@ -1747,17 +1696,17 @@ function abrirModalObligacion(id) {
   document.getElementById('obligFechaEsp').value = o ? (o.fechaEsp || '') : '';
   document.getElementById('obligMonto').value = o ? (o.montoEstimado || '') : '';
   document.getElementById('obligObs').value = o ? (o.obs || '') : '';
-  document.getElementById('obligAreaEsp') && (document.getElementById('obligAreaEsp').value = '');
   document.getElementById('sugerenciaProrrateo').style.display = 'none';
   document.getElementById('obligProrrateoSelector').classList.add('hidden');
   document.getElementById('btnEliminarOblig').classList.toggle('hidden', !o);
+  const btnArchivar = document.getElementById('btnArchivarOblig');
+  if (btnArchivar) btnArchivar.classList.toggle('hidden', !o || o.estado !== 'ACTIVA');
   onObligItemChange();
   mostrarCamposFrecuencia();
 
   // Cargar datos de área DESPUÉS de onObligItemChange (que resetea los selectores)
   if (o) {
     if (o.area === 'MULTI' || (o.multiArea && o.multiArea.length)) {
-      // Mostrar selector multi-área y cargar datos
       document.getElementById('obligAreaSelector').classList.remove('hidden');
       document.getElementById('obligSelAreaFilas').innerHTML = '';
       if (o.multiArea && o.multiArea.length) {
@@ -1773,14 +1722,21 @@ function abrirModalObligacion(id) {
       document.getElementById('obligPPct2').value = o.pPct2||'';
       document.getElementById('obligPArea3').value = o.pArea3||'';
       document.getElementById('obligPPct3').value = o.pPct3||'';
-    } else if (o.area && o.area !== '') {
-      // Área fija — mostrar en info
     }
-    // Cargar monto estimado
-    document.getElementById('obligMonto').value = o.montoEstimado || '';
   }
 
   document.getElementById('modalOblig').classList.add('show');
+}
+
+async function archivarObligacionActual() {
+  if (!obligEditId) return;
+  if (!confirm('¿Archivar esta obligación?\n\nDejará de generar nuevos vencimientos, pero no se borra el historial de los que ya existen.')) return;
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'archivarPlantilla', id: obligEditId }) });
+    const data = await r.json();
+    if (data.ok) { showToast('✅ Obligación archivada'); cerrarModal('modalOblig'); await cargarObligaciones(); }
+    else alert('Error: ' + (data.error||''));
+  } catch(e) { alert('Error de conexión'); }
 }
 
 function mostrarCamposFrecuencia() {
@@ -1835,7 +1791,7 @@ async function guardarObligacion() {
     itemData.area
   ) : '';
 
-  const payload = { action: 'saveObligacion', id: obligEditId, nombre, item, frecuencia, dia, fechaEsp, montoEstimado, obs, area, areaEsp, pArea1, pPct1, pArea2, pPct2, pArea3, pPct3, categoria, tipo, subTipo, multiArea: multiAreaOblig };
+  const payload = { action: 'savePlantilla', id: obligEditId, nombre, item, frecuencia, dia, fechaEsp, montoEstimado, obs, area, pArea1, pPct1, pArea2, pPct2, pArea3, pPct3, categoria, tipo, subTipo, multiArea: multiAreaOblig };
   await btnAction('btnGuardarOblig', 'Guardando...', 'Obligación guardada', async () => {
     const r = await fetch(BACKEND_URL, { method: 'POST', body: JSON.stringify(payload) });
     const data = await r.json();
@@ -1845,9 +1801,9 @@ async function guardarObligacion() {
 }
 
 async function eliminarObligacion() {
-  if (!confirm('¿Eliminar esta obligación?')) return;
+  if (!confirm('¿Eliminar esta obligación?\n\nSe borra la regla recurrente. Los vencimientos ya generados NO se eliminan (quedan como historial).')) return;
   try {
-    const r = await fetch(BACKEND_URL, { method: 'POST', body: JSON.stringify({ action: 'deleteObligacion', id: obligEditId }) });
+    const r = await fetch(BACKEND_URL, { method: 'POST', body: JSON.stringify({ action: 'deletePlantilla', id: obligEditId }) });
     const data = await r.json();
     if (data.ok) { cerrarModal('modalOblig'); await cargarObligaciones(); }
     else { alert('Error: ' + (data.error || '')); }
@@ -1875,29 +1831,28 @@ function irAObligaciones() {
   showSection('obligaciones', tab);
 }
 
-function mostrarAlertaDisruptiva(proximas) {
-  if (!proximas.length) return;
+function mostrarAlertaDisruptiva(itemsAlerta) {
+  if (!itemsAlerta.length) return;
 
   const hoyStr = hoy();
-  const mananaD = new Date(); mananaD.setDate(mananaD.getDate()+1);
-  const mananaStr = mananaD.toISOString().slice(0,10);
 
   const lista = document.getElementById('alertaModalLista');
-  lista.innerHTML = proximas.map(o => {
-    const prox = proximaFecha(o);
-    const esHoy = prox === hoyStr;
-    const esMañana = prox === mananaStr;
-    const etiqueta = esHoy
+  lista.innerHTML = itemsAlerta.map(v => {
+    const est = badgeVisual(v);
+    const esHoy = v.fecha === hoyStr;
+    const etiqueta = est === 'vencida'
+      ? '<span style="background:#c0392b;color:white;font-size:11px;font-weight:700;padding:2px 8px;border-radius:8px;">VENCIDA</span>'
+      : esHoy
       ? '<span style="background:#c0392b;color:white;font-size:11px;font-weight:700;padding:2px 8px;border-radius:8px;">HOY</span>'
       : '<span style="background:#e67e22;color:white;font-size:11px;font-weight:700;padding:2px 8px;border-radius:8px;">MAÑANA</span>';
-    const montoStr = o.montoEstimado ? ` · $${parseInt(o.montoEstimado).toLocaleString('es-CL')}` : '';
-    const obsStr = o.obs ? `<div style="font-size:12px;color:#888;margin-top:2px;">${o.obs}</div>` : '';
+    const montoStr = v.montoEstimado ? ` · $${parseInt(v.montoEstimado).toLocaleString('es-CL')}` : '';
+    const obsStr = v.obs ? `<div style="font-size:12px;color:#888;margin-top:2px;">${v.obs}</div>` : '';
     return `<div style="background:#fff5f5;border:1.5px solid #e74c3c;border-radius:10px;padding:12px 14px;margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-        <span style="font-size:15px;font-weight:700;color:#222;">⚡ ${o.nombre}</span>
+        <span style="font-size:15px;font-weight:700;color:#222;">⚡ ${v.nombre}</span>
         ${etiqueta}
       </div>
-      <div style="font-size:13px;color:#555;">📅 ${fmtFecha(prox)}${montoStr}</div>
+      <div style="font-size:13px;color:#555;">📅 ${fmtFecha(v.fecha)}${montoStr}</div>
       ${obsStr}
     </div>`;
   }).join('');
@@ -1909,15 +1864,17 @@ function mostrarAlertaDisruptiva(proximas) {
 window.addEventListener('load', () => {
   cargarItems();
   cargarUltimosRegistros();
-  fetch(BACKEND_URL, { method: 'POST', body: JSON.stringify({ action: 'getObligaciones' }) })
+  fetch(BACKEND_URL, { method: 'POST', body: JSON.stringify({ action: 'getVencimientos' }) })
     .then(r => r.json()).then(data => {
-      obligaciones = data.obligaciones || [];
-      const proximas = obligaciones.filter(o => o.estado !== 'ARCHIVADO' && (estadoOblig(o) === 'proximo' || estadoOblig(o) === 'vencida'));
+      vencimientos = data.vencimientos || [];
+      const itemsAlerta = vencimientos
+        .filter(v => { const e = badgeVisual(v); return e === 'proximo' || e === 'vencida'; })
+        .sort((a,b) => (a.fecha||'').localeCompare(b.fecha||''));
       // Badge en pestaña
       const badge = document.getElementById('badgeOblig');
-      if (proximas.length) { badge.textContent = proximas.length; badge.classList.add('show'); }
+      if (itemsAlerta.length) { badge.textContent = itemsAlerta.length; badge.classList.add('show'); }
       // Modal disruptivo
-      if (proximas.length) mostrarAlertaDisruptiva(proximas);
+      if (itemsAlerta.length) mostrarAlertaDisruptiva(itemsAlerta);
     }).catch(() => {});
 });
 
