@@ -199,9 +199,10 @@
   <!-- RESUMEN TOTAL -->
   <div class="card hidden" id="cardResumenTotal" style="background:#f0f7ff;border:1.5px solid #003a79;">
     <div style="display:flex;justify-content:space-between;align-items:center;">
-      <span style="font-size:14px;font-weight:700;color:#003a79;">Total boleta</span>
+      <span style="font-size:14px;font-weight:700;color:#003a79;">Total factura</span>
       <span style="font-size:20px;font-weight:800;color:#003a79;" id="totalBoleta">$0</span>
     </div>
+    <div id="detalleTotalFactura" style="margin-top:8px;padding-top:8px;border-top:1px solid #d6e4f5;"></div>
   </div>
 
   <!-- TIPO MONTO — global para todos los ítems -->
@@ -1120,18 +1121,54 @@ function getSeccionData(id) {
 
 function recalcularTotal() {
   const secciones = document.querySelectorAll('#itemsSecciones > div');
-  let total = 0;
+  let totalNeto = 0, totalIva19 = 0, totalAdicionalHarina = 0, totalFactura = 0;
+
   secciones.forEach(s => {
     const id = parseInt(s.id.replace('sec-item-',''));
     const data = getSeccionData(id);
-    if (data) total += data.montoTotal;
+    if (!data) return;
+    const factor = data.esHarina ? 1.31 : 1.19;
+    const ingresado = data.montoTotal; // lo que se tipeó, según el tipo de monto elegido
+
+    let neto, bruto;
+    if (tipoMonto === 'neto') {
+      neto = ingresado;
+      bruto = Math.round(neto * factor);
+    } else if (tipoMonto === 'siniva') {
+      neto = ingresado;
+      bruto = ingresado;
+    } else { // bruto (o sin elegir todavía — se asume bruto por defecto para la vista previa)
+      bruto = ingresado;
+      neto = Math.round(bruto / factor);
+    }
+
+    const iva19 = tipoMonto === 'siniva' ? 0 : Math.round(neto * 0.19);
+    const adicionalHarina = (data.esHarina && tipoMonto !== 'siniva') ? Math.round(neto * 0.12) : 0;
+
+    totalNeto += neto;
+    totalIva19 += iva19;
+    totalAdicionalHarina += adicionalHarina;
+    totalFactura += bruto;
   });
+
   const cardTotal = document.getElementById('cardResumenTotal');
-  if (total > 0) {
+  const detalle = document.getElementById('detalleTotalFactura');
+  if (totalFactura > 0 || totalNeto > 0) {
     cardTotal.classList.remove('hidden');
-    document.getElementById('totalBoleta').textContent = '$'+total.toLocaleString('es-CL');
+    document.getElementById('totalBoleta').textContent = '$'+totalFactura.toLocaleString('es-CL');
+    if (detalle) {
+      let html = `<div style="display:flex;justify-content:space-between;font-size:12px;color:#555;padding:2px 0;"><span>Neto</span><span>$${totalNeto.toLocaleString('es-CL')}</span></div>`;
+      if (tipoMonto !== 'siniva') {
+        html += `<div style="display:flex;justify-content:space-between;font-size:12px;color:#555;padding:2px 0;"><span>IVA (19%)</span><span>$${totalIva19.toLocaleString('es-CL')}</span></div>`;
+        if (totalAdicionalHarina > 0) {
+          html += `<div style="display:flex;justify-content:space-between;font-size:12px;color:#856404;padding:2px 0;"><span>🌾 Impuesto adicional harina (12%)</span><span>$${totalAdicionalHarina.toLocaleString('es-CL')}</span></div>`;
+        }
+      }
+      detalle.innerHTML = html;
+    }
   } else {
     cardTotal.classList.add('hidden');
+    if (detalle) detalle.innerHTML = '';
   }
   checkReady();
 }
@@ -1314,6 +1351,18 @@ document.getElementById('btnNew').addEventListener('click', () => {
 let todosRegistros = []; // registros desde Sheets
 let registrosMostrados = 3;
 
+// La fecha se guarda como texto "dd-mm-yyyy" (o a veces "dd/mm/yyyy") — new Date() de JS
+// NO interpreta ese formato de forma confiable (da "Invalid Date" en varios navegadores),
+// lo que rompía el orden de "Últimos registros" y podía dejar el más nuevo fuera de vista.
+function parseFechaChilena(str) {
+  if (!str) return new Date(0);
+  const s = String(str).trim();
+  const m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+  if (m) return new Date(parseInt(m[3]), parseInt(m[2])-1, parseInt(m[1]));
+  const d = new Date(s); // fallback: yyyy-mm-dd u otro formato que sí entienda nativamente
+  return isNaN(d.getTime()) ? new Date(0) : d;
+}
+
 async function cargarUltimosRegistros() {
   try {
     const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getGastos' }) });
@@ -1321,8 +1370,7 @@ async function cargarUltimosRegistros() {
     if (data.gastos) {
       // Ordenar por fecha descendente (más reciente primero)
       todosRegistros = data.gastos.filter(g => g.fecha).sort((a,b) => {
-        const fa = new Date(a.fecha); const fb = new Date(b.fecha);
-        return fb - fa;
+        return parseFechaChilena(b.fecha) - parseFechaChilena(a.fecha);
       });
       renderRecords();
     }
@@ -2109,7 +2157,7 @@ window.addEventListener('load', () => {
 function abrirEditarGasto(fila) {
   const r = todosRegistros.find(x => x.fila === fila);
   if (!r) return;
-  const fecha = r.fecha ? new Date(r.fecha) : null;
+  const fecha = r.fecha ? parseFechaChilena(r.fecha) : null;
   const fechaStr = fecha && !isNaN(fecha) ?
     `${fecha.getFullYear()}-${String(fecha.getMonth()+1).padStart(2,'0')}-${String(fecha.getDate()).padStart(2,'0')}` : '';
   document.getElementById('editFila').value = fila;
@@ -2219,20 +2267,20 @@ function parseMonto(v) {
 function renderAnalisis(gastos, mes, anio) {
   const mesStr = String(mes).padStart(2,'0');
 
-  // Normalizar fechas — formato dd/mm/yyyy → yyyy-mm
+  // Normalizar fechas a "yyyy-mm" para agrupar por mes
   function getMesKey(fechaStr) {
     const f = String(fechaStr||'');
-    // formato dd/mm/yyyy
-    const partsSlash = f.split('/');
-    if (partsSlash.length === 3) return `${partsSlash[2]}-${partsSlash[1].padStart(2,'0')}`;
+    // formato dd/mm/yyyy o dd-mm-yyyy (el que genera la app al registrar)
+    const m = f.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+    if (m) return `${m[3]}-${m[2].padStart(2,'0')}`;
     // formato yyyy-mm-dd
     if (f.length >= 7 && f.match(/^\d{4}-\d{2}/)) return f.slice(0,7);
     // formato Date string: "Mon Jun 22 2026 ..."
     const d = new Date(f);
     if (!isNaN(d.getTime())) {
       const y = d.getFullYear();
-      const m = String(d.getMonth()+1).padStart(2,'0');
-      return `${y}-${m}`;
+      const mo = String(d.getMonth()+1).padStart(2,'0');
+      return `${y}-${mo}`;
     }
     return '';
   }
