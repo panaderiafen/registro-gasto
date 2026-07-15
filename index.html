@@ -893,7 +893,8 @@ function agregarSeccionItem() {
     </div>
     <!-- Área SELECCIONAR -->
     <div id="selArea-${id}" style="display:none;margin-top:10px;">
-      <label style="font-size:12px;font-weight:600;color:#444;margin-bottom:6px;display:block;">Distribución por área <span style="font-weight:400;color:#aaa;">(monto en $)</span></label>
+      <label style="font-size:12px;font-weight:600;color:#444;margin-bottom:2px;display:block;">Distribución por área <span style="font-weight:400;color:#aaa;">(monto en $)</span></label>
+      <div id="labelSelArea-${id}" style="font-size:11px;font-weight:700;color:#e67e22;margin-bottom:6px;"></div>
       <div id="selAreaFilas-${id}"></div>
       <button type="button" onclick="agregarFilaAreaSec(${id})" style="width:100%;padding:8px;margin-top:6px;background:transparent;border:1.5px dashed #003a79;border-radius:8px;color:#003a79;font-size:12px;font-weight:600;cursor:pointer;">+ Agregar área</button>
       <div id="selAreaHint-${id}" style="font-size:12px;color:#003a79;margin-top:4px;"></div>
@@ -911,7 +912,7 @@ function agregarSeccionItem() {
       <div id="prorrateoHint-${id}" style="font-size:12px;color:#888;margin-top:4px;">Los porcentajes deben sumar 100%</div>
       <!-- Monto total para prorrateo -->
       <div style="margin-top:10px;">
-        <label style="font-size:12px;font-weight:600;color:#444;">Monto total</label>
+        <label style="font-size:12px;font-weight:600;color:#444;" id="labelMontoSec-${id}">Monto total</label>
         <div class="monto-input-wrap" style="margin-top:4px;"><span>$</span><input type="number" id="montoSec-${id}" placeholder="0" min="0" style="padding-left:36px;" oninput="recalcularTotal()"/></div>
         ${acumuladorHtml(`montoSec-${id}`)}
       </div>
@@ -976,9 +977,14 @@ function actualizarLabelMonto(id) {
   if (!tipoMonto) return;
   const esH = document.getElementById(`harinaS-${id}`)?.classList.contains('selected');
   const pct = esH ? '31%' : '19%';
-  const lbl = tipoMonto === 'neto' ? `Monto neto (IVA ${pct})` : tipoMonto === 'siniva' ? 'Monto' : 'Monto bruto';
+  const lbl = tipoMonto === 'neto' ? `Montos NETOS (se sumará IVA ${pct} al guardar)` : tipoMonto === 'siniva' ? 'Montos (sin IVA)' : 'Montos BRUTOS (total final, con IVA ya incluido)';
+  const lblCorta = tipoMonto === 'neto' ? `Monto neto (IVA ${pct})` : tipoMonto === 'siniva' ? 'Monto' : 'Monto bruto';
   const lFijo = document.getElementById(`labelMontoFijo-${id}`);
-  if (lFijo) lFijo.textContent = lbl;
+  if (lFijo) lFijo.textContent = lblCorta;
+  const lSelArea = document.getElementById(`labelSelArea-${id}`);
+  if (lSelArea) lSelArea.textContent = lbl;
+  const lSec = document.getElementById(`labelMontoSec-${id}`);
+  if (lSec) lSec.textContent = tipoMonto === 'neto' ? `Monto total NETO (IVA ${pct})` : tipoMonto === 'siniva' ? 'Monto total' : 'Monto total BRUTO';
 }
 
 // Pequeño widget reutilizable: casilla + botón "+ Sumar" que va acumulando montos
