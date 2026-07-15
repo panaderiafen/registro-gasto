@@ -613,6 +613,20 @@
 </div>
 
 <!-- TOAST -->
+<!-- MODAL VER BOLETA -->
+<div class="modal-overlay" id="modalVerBoleta">
+  <div class="modal" style="padding:0;border-radius:16px;overflow:hidden;max-height:85vh;">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #eee;">
+      <span style="font-weight:700;font-size:15px;color:#222;">📷 Boleta</span>
+      <button onclick="cerrarModal('modalVerBoleta')" style="background:none;border:none;font-size:24px;color:#888;cursor:pointer;line-height:1;padding:0 4px;">×</button>
+    </div>
+    <iframe id="iframeBoleta" src="" style="width:100%;height:65vh;border:none;display:block;background:#f5f5f5;"></iframe>
+    <div style="padding:12px 16px;text-align:center;">
+      <a id="linkAbrirBoleta" href="#" target="_blank" style="font-size:13px;color:#003a79;font-weight:600;text-decoration:none;">Abrir en una pestaña nueva ↗</a>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <!-- MODAL ALERTA DISRUPTIVA -->
@@ -1364,7 +1378,7 @@ function renderRecords() {
         </div>
       </div>
       ${fila ? `<div style="display:flex;gap:8px;">
-        ${r.urlFoto ? `<button onclick="window.open('${r.urlFoto}','_blank')" style="flex:1;padding:6px;background:#fff8e1;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#856404;cursor:pointer;">📷 Ver boleta</button>` : ''}
+        ${r.urlFoto ? `<button onclick="verBoleta('${r.urlFoto}')" style="flex:1;padding:6px;background:#fff8e1;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#856404;cursor:pointer;">📷 Ver boleta</button>` : ''}
         <button onclick="abrirEditarGasto(${fila})" style="flex:1;padding:6px;background:#f0f4ff;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#003a79;cursor:pointer;">✏️ Editar</button>
         <button onclick="eliminarGasto(${fila})" style="flex:1;padding:6px;background:#fff0f0;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#c0392b;cursor:pointer;">🗑 Eliminar</button>
       </div>` : ''}
@@ -2003,9 +2017,23 @@ async function eliminarObligacion() {
   } catch(e) { alert('Error de conexión'); }
 }
 
+// Muestra la foto de la boleta DENTRO de la app (sin salir a Drive) usando el visor
+// embebido oficial de Google Drive (funciona con la URL "compartir" que ya guardamos).
+function verBoleta(url) {
+  if (!url) return;
+  const match = url.match(/\/d\/([^/]+)/);
+  const fileId = match ? match[1] : null;
+  const iframe = document.getElementById('iframeBoleta');
+  const link = document.getElementById('linkAbrirBoleta');
+  iframe.src = fileId ? `https://drive.google.com/file/d/${fileId}/preview` : url;
+  link.href = url;
+  document.getElementById('modalVerBoleta').classList.add('show');
+}
+
 function cerrarModal(id) {
   document.getElementById(id).classList.remove('show');
   if (id === 'modalPago') resetModalPago();
+  if (id === 'modalVerBoleta') { const ifr = document.getElementById('iframeBoleta'); if (ifr) ifr.src = ''; }
 }
 
 // Cerrar modales tocando overlay (excepto alerta disruptiva)
