@@ -972,6 +972,7 @@ function selHarinaItem(id, esH) {
   document.getElementById(`harinaNo-${id}`).classList.toggle('selected', !esH);
   document.getElementById(`harinaS-${id}`).classList.toggle('selected', esH);
   actualizarLabelMonto(id);
+  recalcularTotal();
 }
 
 function actualizarLabelMonto(id) {
@@ -1261,6 +1262,7 @@ function selTipoMonto(tipo) {
     const id = parseInt(s.id.replace('sec-item-',''));
     actualizarLabelMonto(id);
   });
+  recalcularTotal();
   checkReady();
 }
 
