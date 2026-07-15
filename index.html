@@ -736,13 +736,26 @@ let itemEditNombre = null;
 function renderItems() {
   const lista = document.getElementById('itemsList');
   if (!ITEMS.length) { lista.innerHTML = '<div class="loading-text">No hay ítems registrados.</div>'; return; }
-  lista.innerHTML = '<div class="table-wrap"><table><thead><tr><th>Ítem</th><th>Categoría</th><th>Tipo</th><th>Área</th></tr></thead><tbody>' +
-    ITEMS.map(i => `<tr onclick="abrirModalItem('${i.item.replace(/'/g,"\\'")}')">
-      <td><strong>${i.item}</strong><br><small style="color:#888">${i.subTipo}</small></td>
-      <td>${i.categoria}</td>
-      <td>${i.tipo}</td>
-      <td>${i.area}</td>
+  lista.innerHTML = '<div class="table-wrap"><table><thead><tr><th></th><th>Ítem</th><th>Categoría</th><th>Tipo</th><th>Área</th></tr></thead><tbody>' +
+    ITEMS.map((i, idx) => `<tr>
+      <td style="white-space:nowrap;padding:2px 4px;" onclick="event.stopPropagation()">
+        <button onclick="moverItem('${i.item.replace(/'/g,"\\'")}','arriba')" ${idx===0 ? 'disabled style="opacity:0.25;"' : ''} style="border:none;background:none;font-size:15px;cursor:pointer;padding:2px 4px;color:#003a79;">▲</button>
+        <button onclick="moverItem('${i.item.replace(/'/g,"\\'")}','abajo')" ${idx===ITEMS.length-1 ? 'disabled style="opacity:0.25;"' : ''} style="border:none;background:none;font-size:15px;cursor:pointer;padding:2px 4px;color:#003a79;">▼</button>
+      </td>
+      <td onclick="abrirModalItem('${i.item.replace(/'/g,"\\'")}')" style="cursor:pointer;"><strong>${i.item}</strong><br><small style="color:#888">${i.subTipo}</small></td>
+      <td onclick="abrirModalItem('${i.item.replace(/'/g,"\\'")}')" style="cursor:pointer;">${i.categoria}</td>
+      <td onclick="abrirModalItem('${i.item.replace(/'/g,"\\'")}')" style="cursor:pointer;">${i.tipo}</td>
+      <td onclick="abrirModalItem('${i.item.replace(/'/g,"\\'")}')" style="cursor:pointer;">${i.area}</td>
     </tr>`).join('') + '</tbody></table></div>';
+}
+
+async function moverItem(nombre, direccion) {
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'moverItem', item: nombre, direccion }) });
+    const data = await r.json();
+    if (data.ok) { await cargarItems(); renderItems(); }
+    else { alert('Error: ' + (data.error||'')); }
+  } catch(e) { alert('Error de conexión'); }
 }
 
 function abrirModalItem(nombre) {
