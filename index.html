@@ -1333,6 +1333,7 @@ function renderRecords() {
         </div>
       </div>
       ${fila ? `<div style="display:flex;gap:8px;">
+        ${r.urlFoto ? `<button onclick="window.open('${r.urlFoto}','_blank')" style="flex:1;padding:6px;background:#fff8e1;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#856404;cursor:pointer;">📷 Ver boleta</button>` : ''}
         <button onclick="abrirEditarGasto(${fila})" style="flex:1;padding:6px;background:#f0f4ff;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#003a79;cursor:pointer;">✏️ Editar</button>
         <button onclick="eliminarGasto(${fila})" style="flex:1;padding:6px;background:#fff0f0;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#c0392b;cursor:pointer;">🗑 Eliminar</button>
       </div>` : ''}
