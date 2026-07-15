@@ -261,6 +261,7 @@
 
   <div class="records-section" style="margin-top:28px">
     <div class="records-title">Últimos registros <span class="badge-count" id="countBadge">0</span></div>
+    <input type="text" id="buscarRegistro" placeholder="🔍 Buscar por ítem, monto o fecha..." oninput="renderRecords()" style="width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;"/>
     <div id="recordsList"><div class="empty-records">Cargando registros...</div></div>
     <button id="btnVerMas" onclick="verMasRegistros()" class="hidden" style="width:100%;padding:10px;margin-top:8px;background:white;border:1px solid #ddd;border-radius:8px;font-size:13px;font-weight:600;color:#003a79;cursor:pointer;">Ver más registros</button>
   </div>
@@ -1289,18 +1290,29 @@ function renderRecords() {
     thumb: r.thumb, esSesion: true
   }));
 
-  // Usar registros de Sheets si están disponibles, sino solo sesión
-  let lista = [];
-  if (todosRegistros.length) {
-    lista = todosRegistros.slice(0, registrosMostrados);
+  const base = todosRegistros.length ? todosRegistros : sesionItems;
+  const busqueda = (document.getElementById('buscarRegistro')?.value || '').trim().toLowerCase();
+  const busquedaNum = busqueda.replace(/[^0-9]/g, ''); // para que "896.302" también encuentre 896302
+
+  let lista;
+  if (busqueda) {
+    lista = base.filter(r => {
+      const fecha = r.fecha || r.date || '';
+      const fechaFmt = (fecha ? (fecha.includes('/') ? fecha : fmtFecha(fecha)) : '').toLowerCase();
+      const item = (r.item || '').toLowerCase();
+      const area = (r.area || '').toLowerCase();
+      const monto = String(r.montoFinal || r.monto || '');
+      const montoMatch = busquedaNum && monto.includes(busquedaNum);
+      return item.includes(busqueda) || fechaFmt.includes(busqueda) || area.includes(busqueda) || montoMatch;
+    });
   } else {
-    lista = sesionItems;
+    lista = todosRegistros.length ? todosRegistros.slice(0, registrosMostrados) : base;
   }
 
   countBadge.textContent = todosRegistros.length || records.length;
 
   if (!lista.length) {
-    recordsList.innerHTML = '<div class="empty-records">Aún no hay registros</div>';
+    recordsList.innerHTML = `<div class="empty-records">${busqueda ? `Sin resultados para "${busqueda}"` : 'Aún no hay registros'}</div>`;
     document.getElementById('btnVerMas').classList.add('hidden');
     return;
   }
@@ -1327,9 +1339,9 @@ function renderRecords() {
     </div>`;
   }).join('');
 
-  // Mostrar botón ver más si hay más registros
+  // Mostrar botón ver más — se oculta mientras hay una búsqueda activa (se muestran todos los resultados)
   const btnVerMas = document.getElementById('btnVerMas');
-  if (todosRegistros.length > registrosMostrados) {
+  if (!busqueda && todosRegistros.length > registrosMostrados) {
     btnVerMas.classList.remove('hidden');
     btnVerMas.textContent = `Ver más (${todosRegistros.length - registrosMostrados} restantes)`;
   } else {
