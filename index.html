@@ -1634,8 +1634,9 @@ function renderObligaciones() {
     // "Eliminar" solo se ofrece si AÚN NO está pagado — una vez pagado, borrar la fila
     // de Vencimientos es definitivo (no hay papelera), así que se protege desde la UI.
     const btnEditar = v.plantillaId ? `<button onclick="abrirModalObligacion('${v.plantillaId}')" style="flex:1;padding:7px;background:#f0f4ff;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#003a79;cursor:pointer;">✏️ Editar regla</button>` : '';
+    const btnVerFoto = v.urlComprobante ? `<button onclick="verBoleta('${v.urlComprobante}')" style="flex:1;padding:7px;background:#fff8e1;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#856404;cursor:pointer;">📷 Ver foto</button>` : '';
     const btnEliminar = v.estado !== 'PAGADO' ? `<button onclick="confirmarEliminarVencimiento('${v.id}','${v.nombre.replace(/'/g,"\\'")}')" style="flex:1;padding:7px;background:#fff0f0;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#c0392b;cursor:pointer;">🗑 Eliminar</button>` : '';
-    const accionesHtml = (btnEditar || btnEliminar) ? `<div style="display:flex;gap:8px;margin-top:10px;border-top:1px solid #f0f0f0;padding-top:8px;">${btnEditar}${btnEliminar}</div>` : '';
+    const accionesHtml = (btnEditar || btnVerFoto || btnEliminar) ? `<div style="display:flex;gap:8px;margin-top:10px;border-top:1px solid #f0f0f0;padding-top:8px;">${btnEditar}${btnVerFoto}${btnEliminar}</div>` : '';
     return `<div class="oblig-item ${esVencida ? 'alerta' : est === 'proximo' ? 'alerta' : est === 'pagado' ? 'pagado' : ''}" style="${esVencida ? 'border-left-color:#c0392b;background:#fff5f5;' : ''}">
       <div class="oblig-header" onclick="clickVencimiento('${v.id}')" style="cursor:pointer;">
         <div class="oblig-nombre">${v.nombre}</div>
