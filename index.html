@@ -470,7 +470,16 @@
     <div id="pagoDetalle" style="display:none;background:#f8f9fa;border-radius:8px;padding:10px 12px;margin-bottom:14px;border-left:3px solid #003a79;"></div>
     <div class="modal-field">
       <label>Monto pagado ($)</label>
-      <div class="monto-input-wrap"><span>$</span><input type="number" id="pagoMonto" placeholder="0" min="0" style="padding-left:36px"/></div>
+      <div class="monto-input-wrap"><span>$</span><input type="number" id="pagoMonto" placeholder="0" min="0" style="padding-left:36px" oninput="actualizarDesglosePago()"/></div>
+    </div>
+    <div class="modal-field">
+      <label>Tipo de monto</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:4px;">
+        <button type="button" class="area-btn" id="pagoBtnNeto" onclick="selPagoTipoMonto('neto')">Neto (+ IVA 19%)</button>
+        <button type="button" class="area-btn" id="pagoBtnBruto" onclick="selPagoTipoMonto('bruto')">Bruto (con IVA)</button>
+        <button type="button" class="area-btn" id="pagoBtnSinIva" onclick="selPagoTipoMonto('siniva')">Sin IVA</button>
+      </div>
+      <div id="pagoDesglose" style="font-size:12px;color:#555;margin-top:8px;"></div>
     </div>
     <div class="modal-field">
       <label>Fecha de pago</label>
@@ -576,6 +585,14 @@
     <div class="modal-field">
       <label>Monto estimado ($) <span style="font-weight:400;color:#aaa">(opcional)</span></label>
       <div class="monto-input-wrap"><span>$</span><input type="number" id="obligMonto" placeholder="0" min="0" style="padding-left:36px"/></div>
+    </div>
+    <div class="modal-field">
+      <label>Tipo de monto al pagar <span style="font-weight:400;color:#aaa">(opcional — se precarga solo al pagar)</span></label>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:4px;">
+        <button type="button" class="area-btn" id="obligBtnNeto" onclick="selObligTipoMonto('neto')">Neto</button>
+        <button type="button" class="area-btn" id="obligBtnBruto" onclick="selObligTipoMonto('bruto')">Bruto</button>
+        <button type="button" class="area-btn" id="obligBtnSinIva" onclick="selObligTipoMonto('siniva')">Sin IVA</button>
+      </div>
     </div>
     <div class="modal-field">
       <label>Observación <span style="font-weight:400;color:#aaa">(opcional)</span></label>
@@ -1485,6 +1502,7 @@ function renderRecords() {
 let vencimientos = [];  // ocurrencias reales (lo que se muestra como tarjetas)
 let plantillas = [];    // reglas recurrentes/fecha fija (para el modal de edición)
 let obligEditId = null;       // id de PLANTILLA en edición
+let obligTipoMonto = '';      // tipo de monto preferido de la plantilla en edición (opcional)
 let vencimientoPagoId = null; // id de VENCIMIENTO a pagar
 let pagoFile = null;
 
@@ -1823,6 +1841,36 @@ function revisarAlertas() {
   </div>`;
 }
 
+let pagoTipoMonto = 'bruto'; // por defecto Bruto, para no cambiar el comportamiento que ya existía
+
+function selPagoTipoMonto(tipo) {
+  pagoTipoMonto = tipo;
+  document.getElementById('pagoBtnNeto').classList.toggle('selected', tipo === 'neto');
+  document.getElementById('pagoBtnBruto').classList.toggle('selected', tipo === 'bruto');
+  document.getElementById('pagoBtnSinIva').classList.toggle('selected', tipo === 'siniva');
+  actualizarDesglosePago();
+}
+
+function actualizarDesglosePago() {
+  const cont = document.getElementById('pagoDesglose');
+  if (!cont) return;
+  const ingresado = parseFloat(document.getElementById('pagoMonto').value) || 0;
+  if (!ingresado) { cont.innerHTML = ''; return; }
+
+  let neto, bruto;
+  if (pagoTipoMonto === 'neto') { neto = ingresado; bruto = Math.round(neto * 1.19); }
+  else if (pagoTipoMonto === 'siniva') { neto = ingresado; bruto = ingresado; }
+  else { bruto = ingresado; neto = Math.round(bruto / 1.19); }
+  const iva = bruto - neto;
+
+  let html = `<div style="display:flex;justify-content:space-between;padding:2px 0;"><span>Neto</span><span>$${neto.toLocaleString('es-CL')}</span></div>`;
+  if (pagoTipoMonto !== 'siniva') {
+    html += `<div style="display:flex;justify-content:space-between;padding:2px 0;"><span>IVA (19%)</span><span>$${iva.toLocaleString('es-CL')}</span></div>`;
+  }
+  html += `<div style="display:flex;justify-content:space-between;padding:2px 0;font-weight:700;color:#003a79;"><span>Total</span><span>$${bruto.toLocaleString('es-CL')}</span></div>`;
+  cont.innerHTML = html;
+}
+
 function clickVencimiento(id) {
   const v = vencimientos.find(x => x.id === id);
   if (!v) return;
@@ -1839,6 +1887,7 @@ function clickVencimiento(id) {
   document.getElementById('pagoMonto').value = montoPrec;
   document.getElementById('pagoFecha').value = hoy();
   document.getElementById('pagoObs').value = '';
+  selPagoTipoMonto(v.tipoMonto || 'bruto'); // usa la preferencia de la obligación si existe; si no, Bruto por defecto
 
   const detalle = document.getElementById('pagoDetalle');
   if (detalle) {
@@ -1889,6 +1938,7 @@ async function confirmarPago() {
       montoPago: monto,
       fechaPago: fecha,
       obsPago: obs,
+      tipoMonto: pagoTipoMonto,
       imageData, fileName, mimeType
     })});
     const data = await r.json();
@@ -1909,6 +1959,11 @@ async function confirmarPago() {
 
 function resetModalPago() {
   pagoFile = null;
+  pagoTipoMonto = 'bruto';
+  document.getElementById('pagoDesglose').innerHTML = '';
+  document.getElementById('pagoBtnNeto').classList.remove('selected');
+  document.getElementById('pagoBtnBruto').classList.remove('selected');
+  document.getElementById('pagoBtnSinIva').classList.remove('selected');
   document.getElementById('pagoFileInputCam').value = '';
   document.getElementById('pagoFileInputGal').value = '';
   document.getElementById('pagoPreviewImg').style.display = 'none';
@@ -2049,6 +2104,16 @@ function onObligItemChange() {
   if (esSeleccionar) resetSelAreaOblig();
 }
 
+// tipo de monto preferido de la plantilla — opcional. Tocar el mismo botón otra vez lo
+// deselecciona (vuelve a "sin definir", que en el pago por defecto usa Bruto).
+function selObligTipoMonto(tipo, forzar) {
+  if (!forzar && obligTipoMonto === tipo) tipo = '';
+  obligTipoMonto = tipo;
+  document.getElementById('obligBtnNeto').classList.toggle('selected', tipo === 'neto');
+  document.getElementById('obligBtnBruto').classList.toggle('selected', tipo === 'bruto');
+  document.getElementById('obligBtnSinIva').classList.toggle('selected', tipo === 'siniva');
+}
+
 function abrirModalObligacion(id) {
   obligEditId = id || null;
   const o = id ? plantillas.find(x => x.id === id) : null;
@@ -2060,6 +2125,7 @@ function abrirModalObligacion(id) {
   document.getElementById('obligFechaEsp').value = o ? (o.fechaEsp || '') : '';
   document.getElementById('obligMonto').value = o ? (o.montoEstimado || '') : '';
   document.getElementById('obligObs').value = o ? (o.obs || '') : '';
+  selObligTipoMonto(o ? (o.tipoMonto || '') : '', true);
   document.getElementById('sugerenciaProrrateo').style.display = 'none';
   document.getElementById('obligProrrateoSelector').classList.add('hidden');
   document.getElementById('btnEliminarOblig').classList.toggle('hidden', !o);
@@ -2155,7 +2221,7 @@ async function guardarObligacion() {
     itemData.area
   ) : '';
 
-  const payload = { action: 'savePlantilla', id: obligEditId, nombre, item, frecuencia, dia, fechaEsp, montoEstimado, obs, area, pArea1, pPct1, pArea2, pPct2, pArea3, pPct3, categoria, tipo, subTipo, multiArea: multiAreaOblig };
+  const payload = { action: 'savePlantilla', id: obligEditId, nombre, item, frecuencia, dia, fechaEsp, montoEstimado, obs, area, pArea1, pPct1, pArea2, pPct2, pArea3, pPct3, categoria, tipo, subTipo, multiArea: multiAreaOblig, tipoMonto: obligTipoMonto };
   await btnAction('btnGuardarOblig', 'Guardando...', 'Obligación guardada', async () => {
     const r = await fetch(BACKEND_URL, { method: 'POST', body: JSON.stringify(payload) });
     const data = await r.json();
