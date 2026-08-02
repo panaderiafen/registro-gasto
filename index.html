@@ -1561,17 +1561,28 @@ function renderPanoramaMes() {
   if (!cont) return;
   const hoyD = new Date();
   const mesActual = hoyD.getMonth(), anioActual = hoyD.getFullYear();
+  const mesKey = `${anioActual}-${String(mesActual+1).padStart(2,'0')}`;
 
   const tituloEl = document.getElementById('panoramaMesTitulo');
   if (tituloEl) tituloEl.textContent = `📅 Panorama de ${MESES_LARGO[mesActual]}`;
 
-  const items = plantillas
-    .filter(p => p.estado === 'ACTIVA' && p.proximaFecha)
-    .filter(p => {
-      const f = new Date(p.proximaFecha + 'T00:00:00');
-      return f.getFullYear() === anioActual && f.getMonth() === mesActual;
-    })
-    .sort((a,b) => a.proximaFecha.localeCompare(b.proximaFecha));
+  // 1) Vencimientos REALES que caen dentro del mes en curso. Esto cubre las cuponeras,
+  //    que tienen varias cuotas propias y no se pueden representar con una sola
+  //    "próxima fecha" de la plantilla (si tienen cuotas viejas impagas, la próxima
+  //    quedaría en un mes anterior y la cuota de este mes desaparecería del panorama).
+  const items = vencimientos
+    .filter(v => v.estado !== 'PAGADO' && v.fecha && v.fecha.slice(0,7) === mesKey)
+    .map(v => ({ nombre: v.nombre, fecha: v.fecha, monto: v.montoEstimado, plantillaId: v.plantillaId }));
+
+  // 2) Obligaciones recurrentes cuya fecha de este mes aún NO generó vencimiento
+  //    (faltan más de 3 días). Se muestran igual, como referencia.
+  const yaListadas = new Set(items.filter(i => i.plantillaId).map(i => i.plantillaId));
+  plantillas
+    .filter(p => p.estado === 'ACTIVA' && p.proximaFecha && !yaListadas.has(p.id))
+    .filter(p => p.proximaFecha.slice(0,7) === mesKey)
+    .forEach(p => items.push({ nombre: p.nombre, fecha: p.proximaFecha, monto: p.montoEstimado, plantillaId: p.id }));
+
+  items.sort((a,b) => a.fecha.localeCompare(b.fecha));
 
   if (!items.length) {
     cont.innerHTML = '<div style="font-size:13px;color:#aaa;text-align:center;padding:6px 0;">Sin obligaciones activas este mes.</div>';
@@ -1579,17 +1590,17 @@ function renderPanoramaMes() {
   }
 
   const hoyStr = hoy();
-  cont.innerHTML = items.map(p => {
-    const d = new Date(p.proximaFecha + 'T00:00:00');
+  cont.innerHTML = items.map(it => {
+    const d = new Date(it.fecha + 'T00:00:00');
     const dia = String(d.getDate()).padStart(2,'0');
     const mesAbrev = MESES_LARGO[d.getMonth()].slice(0,3);
     let colorDot = '#ccc';
-    if (p.proximaFecha < hoyStr) colorDot = '#e74c3c';
-    else if (p.proximaFecha === hoyStr) colorDot = '#e67e22';
-    const montoStr = p.montoEstimado && !isNaN(parseInt(p.montoEstimado)) ? `<span style="color:#aaa;font-size:11px;white-space:nowrap;">$${parseInt(p.montoEstimado).toLocaleString('es-CL')}</span>` : '';
+    if (it.fecha < hoyStr) colorDot = '#e74c3c';
+    else if (it.fecha === hoyStr) colorDot = '#e67e22';
+    const montoStr = it.monto && !isNaN(parseInt(it.monto)) ? `<span style="color:#aaa;font-size:11px;white-space:nowrap;">$${parseInt(it.monto).toLocaleString('es-CL')}</span>` : '';
     return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f5f5f5;">
       <span style="width:7px;height:7px;border-radius:50%;background:${colorDot};flex-shrink:0;"></span>
-      <span style="flex:1;font-size:13px;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.nombre}</span>
+      <span style="flex:1;font-size:13px;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${it.nombre}</span>
       ${montoStr}
       <span style="font-size:13px;font-weight:700;color:#003a79;min-width:44px;text-align:right;">${dia} ${mesAbrev}</span>
     </div>`;
