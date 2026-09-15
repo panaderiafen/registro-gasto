@@ -909,7 +909,14 @@ function renderTarjetaSII(f, i) {
 // Una factura puede contener varios ítems distintos (ej: materia prima + bienestar).
 // Cada "línea" tiene su propio ítem, su monto y su reparto de áreas.
 function dividirFacturaSII(i) {
-  facturasSII[i].lineas.push({ item: '', areas: [], modoArea: 'monto', monto: '' });
+  const f = facturasSII[i];
+  // Al dividir, la primera línea toma el total y la nueva queda en blanco; si ya había
+  // montos, la nueva se precarga con lo que falta para cuadrar.
+  const total = Math.abs(f.total);
+  if (f.lineas.length === 1 && !f.lineas[0].monto) f.lineas[0].monto = total;
+  const asignado = f.lineas.reduce((s,ln) => s + (parseFloat(ln.monto)||0), 0);
+  const restante = total - asignado;
+  f.lineas.push({ item: '', areas: [], modoArea: 'monto', monto: restante > 0 ? Math.round(restante) : '' });
   renderLineasSII(i);
 }
 
@@ -1007,11 +1014,17 @@ function setModoAreaLinea(i, li, modo) {
 function agregarAreaLinea(i, li) {
   const ln = facturasSII[i].lineas[li];
   if (!ln.areas) ln.areas = [];
-  ln.areas.push({ area: '', valor: '' });
+  // Precargar con lo que falta por repartir: en la primera área eso es el monto completo
+  // de la línea, así el caso más común (un ítem, un área) no obliga a teclear nada.
+  const modo = ln.modoArea || 'monto';
+  const yaRepartido = ln.areas.reduce((s,a) => s + (parseFloat(a.valor)||0), 0);
+  const restante = modo === 'pct' ? (100 - yaRepartido) : (baseLinea(i, li) - yaRepartido);
+  const valorInicial = restante > 0 ? Math.round(restante) : '';
+  ln.areas.push({ area: '', valor: valorInicial });
   const cont = document.getElementById(`areasFilas-${i}-${li}`);
   if (cont) {
     const ai = ln.areas.length - 1;
-    cont.insertAdjacentHTML('beforeend', filaAreaHTML(i, li, ai, '', '', ln.modoArea || 'monto'));
+    cont.insertAdjacentHTML('beforeend', filaAreaHTML(i, li, ai, '', valorInicial, modo));
   }
   recalcularAreasLinea(i, li);
 }
