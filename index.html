@@ -683,6 +683,17 @@
   </div>
 </div>
 
+<!-- MODAL VER DETALLE DE DOCUMENTO -->
+<div class="modal-overlay" id="modalDetalleDoc">
+  <div class="modal" style="max-height:85vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <span id="detalleDocTitulo" style="font-weight:700;font-size:15px;color:#222;">Detalle del documento</span>
+      <button onclick="cerrarModal('modalDetalleDoc')" style="background:none;border:none;font-size:24px;color:#888;cursor:pointer;line-height:1;padding:0 4px;">×</button>
+    </div>
+    <div id="detalleDocContenido"><div class="loading-text">Cargando...</div></div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <!-- MODAL ALERTA DISRUPTIVA -->
@@ -2372,6 +2383,7 @@ function renderRecords() {
         </div>
       </div>
       ${fila ? `<div style="display:flex;gap:8px;">
+        ${r.tieneDetalle ? `<button onclick="verDetalleDocumento('${r.rutProveedor}','${r.folio}')" style="flex:1;padding:6px;background:#f0f7ff;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#003a79;cursor:pointer;">📋 Ver detalle</button>` : ''}
         ${r.urlFoto ? `<button onclick="verBoleta('${r.urlFoto}')" style="flex:1;padding:6px;background:#fff8e1;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#856404;cursor:pointer;">📷 Ver boleta</button>` : ''}
         <button onclick="abrirEditarGasto(${fila})" style="flex:1;padding:6px;background:#f0f4ff;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#003a79;cursor:pointer;">✏️ Editar</button>
         <button onclick="eliminarGasto(${fila})" style="flex:1;padding:6px;background:#fff0f0;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#c0392b;cursor:pointer;">🗑 Eliminar</button>
@@ -3266,6 +3278,43 @@ function verBoleta(url) {
   iframe.src = fileId ? `https://drive.google.com/file/d/${fileId}/preview` : url;
   link.href = url;
   document.getElementById('modalVerBoleta').classList.add('show');
+}
+
+// Muestra las líneas de producto del documento tal como vinieron del SII.
+// Reemplaza a la foto de la boleta en las compras importadas: es el detalle real.
+async function verDetalleDocumento(rut, folio) {
+  const cont = document.getElementById('detalleDocContenido');
+  document.getElementById('detalleDocTitulo').textContent = 'Detalle del documento';
+  cont.innerHTML = '<div class="loading-text">Cargando...</div>';
+  document.getElementById('modalDetalleDoc').classList.add('show');
+
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getDetalleDocumento', rut, folio }) });
+    const d = await r.json();
+    if (!d.detalle || !d.detalle.length) {
+      cont.innerHTML = '<div class="empty-records">No hay detalle guardado para este documento.</div>';
+      return;
+    }
+    document.getElementById('detalleDocTitulo').textContent = d.razonSocial || 'Detalle del documento';
+    const total = d.detalle.reduce((s,x) => s + (parseFloat(x.monto)||0), 0);
+    cont.innerHTML = `
+      <div style="font-size:12px;color:#888;margin-bottom:10px;">N° ${d.folio}${d.fecha ? ' · ' + fmtFecha(d.fecha) : ''}</div>
+      ${d.detalle.map(x => `<div style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
+        <div style="font-size:13px;color:#333;font-weight:600;">${x.descripcion}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:3px;gap:8px;">
+          <span style="font-size:11px;color:#888;">
+            ${x.cantidad ? `${x.cantidad} × $${Math.round(parseFloat(x.precioUnitario)||0).toLocaleString('es-CL')}` : ''}
+            ${x.item ? ` · ${x.item}` : ''}${x.area ? ` · ${x.area}` : ''}
+          </span>
+          <span style="font-size:13px;font-weight:700;color:#003a79;white-space:nowrap;">$${Math.round(parseFloat(x.monto)||0).toLocaleString('es-CL')}</span>
+        </div>
+      </div>`).join('')}
+      <div style="display:flex;justify-content:space-between;padding-top:10px;margin-top:6px;border-top:2px solid #003a79;font-weight:700;color:#003a79;">
+        <span>Total neto</span><span>$${Math.round(total).toLocaleString('es-CL')}</span>
+      </div>`;
+  } catch(e) {
+    cont.innerHTML = '<div class="loading-text">Error al cargar el detalle.</div>';
+  }
 }
 
 function cerrarModal(id) {
