@@ -404,8 +404,8 @@
 <div class="container">
   <div class="card">
     <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:8px;">📥 Importar registro de compras del SII</div>
-    <div style="font-size:12px;color:#888;margin-bottom:12px;">Descarga el Registro de Compras desde el SII y súbelo acá en formato CSV.</div>
-    <input type="file" id="archivoSII" accept=".csv" onchange="leerArchivoSII(this)" style="width:100%;padding:10px;border:1.5px dashed #003a79;border-radius:8px;font-size:13px;background:#f8faff;"/>
+    <div style="font-size:12px;color:#888;margin-bottom:12px;">Acepta dos formatos del SII:<br>• <strong>Registro de Compras</strong> (.csv) — el mes completo, sin detalle de productos<br>• <strong>Documentos recibidos</strong> (.xls) — hasta 20 documentos, <strong>con detalle de cada producto</strong></div>
+    <input type="file" id="archivoSII" accept=".csv,.xls,.xlsx" onchange="leerArchivoSII(this)" style="width:100%;padding:10px;border:1.5px dashed #003a79;border-radius:8px;font-size:13px;background:#f8faff;"/>
     <div id="cargaResumen" style="margin-top:12px;"></div>
   </div>
   <div id="cargaLista"></div>
@@ -715,8 +715,92 @@ function showSection(id, tab) {
 
 // ─── CARGA MASIVA SII ─────────────────────────
 let facturasSII = []; // facturas leídas del archivo, aún no importadas
+let formatoSII = 'registro'; // 'registro' (CSV sin detalle) | 'detalle' (XLS con productos)
 
 const TIPO_DOC_LABEL = { '33': 'Factura', '34': 'Factura exenta', '39': 'Boleta', '61': 'Nota de crédito', '56': 'Nota de débito' };
+
+// El SII entrega los nombres con las tildes ya destruidas (llegan como '?'), así que
+// no hay forma de recuperarlas: se limpian para que al menos se vean prolijos.
+function limpiarTextoSII(t) {
+  return String(t||'').replace(/\?/g, '').replace(/\s+/g, ' ').trim();
+}
+
+// Formato "Documentos recibidos" del SII: es HTML con extensión .xls. Trae el detalle
+// de cada producto (descripción, cantidad, precio unitario), que el Registro de Compras no tiene.
+function parseXLSDetalleSII(texto) {
+  const limpiarCelda = (c) => {
+    const sinTags = c.replace(/<[^>]*>/g, '');
+    const t = document.createElement('textarea');
+    t.innerHTML = sinTags;
+    return t.value.trim();
+  };
+
+  const filas = texto.match(/<tr[^>]*>([\s\S]*?)<\/tr>/gi) || [];
+  const docs = [];
+  let actual = null;
+
+  filas.forEach(fila => {
+    const celdas = (fila.match(/<td[^>]*>([\s\S]*?)<\/td>/gi) || []).map(limpiarCelda);
+    if (!celdas.length) return;
+
+    // Cabecera de documento: primera celda es el tipo de DTE y la fila trae todos los totales
+    if (/^(33|34|39|61|56|110|111|112)$/.test(celdas[0]) && celdas.length >= 23) {
+      const tipoDoc = celdas[0];
+      const esNotaCredito = tipoDoc === '61';
+      const signo = esNotaCredito ? -1 : 1;
+      const num = (v) => { const n = parseFloat(String(v||'').replace(/\./g,'').replace(',','.')); return isNaN(n) ? 0 : n; };
+      actual = {
+        idx: docs.length,
+        tipoDoc,
+        tipoLabel: TIPO_DOC_LABEL[tipoDoc] || ('Doc ' + tipoDoc),
+        esNotaCredito,
+        rut: celdas[5],
+        razonSocial: limpiarTextoSII(celdas[6]),
+        folio: celdas[1],
+        fecha: fechaISOaDDMMYYYY_SII(celdas[2]),
+        neto: num(celdas[19]) * signo,
+        exento: num(celdas[20]) * signo,
+        iva: num(celdas[21]) * signo,
+        total: num(celdas[22]) * signo,
+        otroImpuesto: 0,
+        tasaOtroImpuesto: 0,
+        esHarina: false,
+        detalle: []
+      };
+      docs.push(actual);
+      return;
+    }
+
+    // Línea de detalle: 11 columnas, la segunda es el número de ítem
+    if (actual && celdas.length >= 11 && celdas[0] === '' && /^\d+$/.test(celdas[1])) {
+      const descripcion = limpiarTextoSII(celdas[4]);
+      const monto = parseFloat(String(celdas[10]||'').replace(/\./g,'').replace(',','.')) || 0;
+      // Las líneas "Referencia POS" con monto 0 son metadatos del punto de venta, no productos
+      if (!monto && /referencia/i.test(descripcion)) return;
+      actual.detalle.push({
+        descripcion,
+        codigo: celdas[3] || '',
+        cantidad: parseFloat(String(celdas[5]||'').replace(',','.')) || 0,
+        precioUnitario: parseFloat(String(celdas[6]||'').replace(',','.')) || 0,
+        codImptoAdic: celdas[9] || '',
+        monto: Math.round(monto)
+      });
+      // Código 23 = impuesto adicional a la harina
+      if (String(celdas[9]||'').trim() === '23') actual.esHarina = true;
+    }
+  });
+
+  return docs.filter(d => d.rut && d.folio);
+}
+
+// El XLS trae la fecha como yyyy-mm-dd; el resto de la app usa dd/mm/yyyy
+function fechaISOaDDMMYYYY_SII(str) {
+  const m = String(str||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  const m2 = String(str||'').match(/^(\d{2})-(\d{2})-(\d{2})$/); // dd-mm-yy del CSV convertido
+  if (m2) return `${m2[1]}/${m2[2]}/20${m2[3]}`;
+  return String(str||'');
+}
 
 function parseCSVSII(texto) {
   // El archivo del SII usa ';' como separador y trae encabezados en la primera línea.
@@ -767,8 +851,18 @@ function leerArchivoSII(input) {
   const reader = new FileReader();
   reader.onload = async (e) => {
     try {
-      facturasSII = parseCSVSII(e.target.result);
-      // Marcar las que ya están en el Sheet para no importarlas dos veces
+      const contenido = e.target.result;
+      // El "xls" del SII es en realidad HTML — se detecta por su contenido, no por la extensión
+      const esDetalle = /<t[rd]\b/i.test(contenido.slice(0, 2000));
+      facturasSII = esDetalle ? parseXLSDetalleSII(contenido) : parseCSVSII(contenido);
+      formatoSII = esDetalle ? 'detalle' : 'registro';
+
+      if (!facturasSII.length) {
+        document.getElementById('cargaResumen').innerHTML = '<div style="color:#c0392b;font-size:13px;">No se reconocieron documentos en el archivo. Revisa que sea el Registro de Compras (.csv) o Documentos recibidos (.xls) del SII.</div>';
+        document.getElementById('cargaLista').innerHTML = '';
+        return;
+      }
+
       document.getElementById('cargaResumen').innerHTML = '<div style="font-size:13px;color:#888;">Revisando documentos ya importados...</div>';
       try {
         const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getFoliosImportados' }) });
@@ -804,6 +898,7 @@ function renderCargaSII() {
   resumen.innerHTML = `
     <div style="background:#f0f7ff;border:1px solid #003a79;border-radius:8px;padding:10px 12px;font-size:13px;">
       <div style="font-weight:700;color:#003a79;margin-bottom:4px;">${totalDocs} documentos en el archivo</div>
+      <div style="font-size:11px;color:#888;margin-bottom:4px;">${formatoSII === 'detalle' ? '📋 Con detalle de productos' : '📄 Registro de Compras (sin detalle)'}</div>
       ${yaImportadas ? `<div style="color:#888;">${yaImportadas} ya importado(s) — se omiten</div>` : ''}
       <div style="color:#555;"><strong>${pendientes} por importar</strong> · Total: <strong>$${Math.round(sumaTotal).toLocaleString('es-CL')}</strong></div>
       ${notasCredito ? `<div style="color:#856404;">${notasCredito} nota(s) de crédito — se restan del total</div>` : ''}
@@ -896,6 +991,13 @@ function renderTarjetaSII(f, i) {
       Neto $${Math.round(f.neto).toLocaleString('es-CL')} · IVA $${Math.round(f.iva).toLocaleString('es-CL')}${f.otroImpuesto ? ` · Otro imp. $${Math.round(f.otroImpuesto).toLocaleString('es-CL')} (${f.tasaOtroImpuesto}%)` : ''}
     </div>
     ${etiquetas.length ? `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">${etiquetas.join('')}</div>` : ''}
+    ${(f.detalle && f.detalle.length) ? `<div style="margin-top:8px;background:#fafafa;border-radius:7px;padding:8px;">
+      <div style="font-size:11px;font-weight:700;color:#666;margin-bottom:4px;">Detalle del documento</div>
+      ${f.detalle.map(d => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;color:#555;padding:2px 0;">
+        <span style="flex:1;min-width:0;">${d.descripcion}${d.cantidad ? ` <span style="color:#aaa;">×${d.cantidad}</span>` : ''}</span>
+        <span style="white-space:nowrap;font-weight:600;">$${Math.abs(d.monto).toLocaleString('es-CL')}</span>
+      </div>`).join('')}
+    </div>` : ''}
 
     <div style="margin-top:10px;padding-top:10px;border-top:1px solid #f0f0f0;">
       <div id="lineasSII-${i}"></div>
