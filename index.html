@@ -1068,6 +1068,9 @@ function sincronizarLineasDesdeDetalle(i) {
     const g = porItem[item];
     const anterior = previas.find(l => l.item === item) || {};
     const areasDesdeProductos = Object.keys(g.areas).map(a => ({ area: a, valor: Math.round(g.areas[a]) }));
+    const itemData = ITEMS.find(x => x.item === item);
+    // Los ítems PRORRATEADO se reparten por porcentaje, no por monto
+    const modoPorDefecto = (itemData && itemData.area === 'PRORRATEADO') ? 'pct' : 'monto';
     // Los redondeos de cada área pueden dejar una diferencia de 1 o 2 pesos contra el
     // monto del ítem: se absorbe en la última área para que siempre cuadre exacto.
     if (areasDesdeProductos.length) {
@@ -1080,7 +1083,7 @@ function sincronizarLineasDesdeDetalle(i) {
       monto: Math.round(g.monto),
       areas: areasDesdeProductos.length ? areasDesdeProductos : (anterior.areas || []),
       areasAuto: areasDesdeProductos.length > 0,
-      modoArea: 'monto'
+      modoArea: anterior.modoArea || modoPorDefecto
     };
   });
 
@@ -1110,8 +1113,10 @@ function renderDetalleAsignable(i) {
     </div>
     ${f.detalle.map((d, di) => {
       const itemData = ITEMS.find(it => it.item === d.item);
-      // El selector de área solo aparece si ese ítem realmente reparte por área
-      const pideArea = itemData && (itemData.area === 'SELECCIONAR' || itemData.area === 'PRORRATEADO');
+      // SELECCIONAR: cada producto va a un área concreta, así que se elige aquí.
+      // PRORRATEADO: el gasto se reparte por porcentajes sobre el total del ítem,
+      // no producto por producto — eso se define más abajo, en su bloque de reparto.
+      const pideArea = itemData && itemData.area === 'SELECCIONAR';
       return `<div style="padding:6px 0;border-bottom:1px solid #f0f0f0;">
         <div style="display:flex;gap:6px;align-items:center;">
           <div style="flex:1;min-width:0;">
@@ -1145,6 +1150,40 @@ function asignarTodoElDetalle(i, campo) {
   f.detalle.forEach(d => { d[campo] = primero[campo]; });
   sincronizarLineasDesdeDetalle(i);
   renderLineasSII(i);
+}
+
+// Sugiere los porcentajes de prorrateo según las ventas reales del mes anterior,
+// igual que en la pestaña Registrar. Los porcentajes quedan editables.
+async function sugerirProrrateoSII(i, li) {
+  const sug = document.getElementById(`sugerenciaSII-${i}-${li}`);
+  const ln = facturasSII[i].lineas[li];
+  sug.style.display = 'block';
+  sug.textContent = '⏳ Calculando...';
+
+  const areasIngresadas = (ln.areas||[]).map(a => a.area).filter(Boolean);
+  if (!areasIngresadas.length) { sug.textContent = '⚠️ Elige primero las áreas'; return; }
+
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getVentasPorArea', areas: areasIngresadas }) });
+    const data = await r.json();
+    if (!data.ok || !data.areas?.length) { sug.textContent = '⚠️ Sin datos de ventas'; return; }
+    const ventas = {};
+    data.areas.forEach(a => { if (areasIngresadas.includes(a.area)) ventas[a.area] = a.total; });
+    const totalV = Object.values(ventas).reduce((s,v) => s+v, 0);
+    if (!totalV) { sug.textContent = '⚠️ Sin ventas para esas áreas'; return; }
+
+    const pcts = areasIngresadas.map(a => ({ area: a, pct: ventas[a] ? Math.round(ventas[a]/totalV*100) : 0 }));
+    const suma = pcts.reduce((s,p) => s+p.pct, 0);
+    if (suma !== 100 && pcts.length) pcts[0].pct += (100 - suma);
+
+    ln.areas.forEach((a, ai) => {
+      const encontrado = pcts.find(p => p.area === a.area);
+      if (encontrado) a.valor = encontrado.pct;
+    });
+    renderLineasSII(i);
+    const sug2 = document.getElementById(`sugerenciaSII-${i}-${li}`);
+    if (sug2) { sug2.style.display = 'block'; sug2.textContent = `✅ ${data.mes}: ${pcts.map(p => `${p.area} ${p.pct}%`).join(' · ')}`; }
+  } catch(e) { sug.textContent = '⚠️ Error de conexión'; }
 }
 
 function renderLineasSII(i) {
@@ -1188,6 +1227,8 @@ function renderLineasSII(i) {
           ${(ln.areas||[]).map((a, ai) => filaAreaHTML(i, li, ai, a.area, a.valor, modo)).join('')}
         </div>
         <button type="button" onclick="agregarAreaLinea(${i},${li})" style="width:100%;padding:6px;margin-top:4px;background:transparent;border:1.5px dashed #003a79;border-radius:7px;color:#003a79;font-size:11px;font-weight:600;cursor:pointer;">+ Agregar área</button>
+        ${modo === 'pct' ? `<button type="button" onclick="sugerirProrrateoSII(${i},${li})" style="width:100%;padding:6px;margin-top:4px;background:#e8f4fd;border:1px solid #2980b9;border-radius:7px;color:#2980b9;font-size:11px;font-weight:600;cursor:pointer;">💡 Sugerir % según ventas del mes anterior</button>` : ''}
+        <div id="sugerenciaSII-${i}-${li}" style="display:none;font-size:11px;color:#2980b9;margin-top:4px;padding:5px 8px;background:#e8f4fd;border-radius:6px;"></div>
         <div id="areasHint-${i}-${li}" style="font-size:11px;margin-top:4px;"></div>
       </div>`;
     }).join('');
@@ -1238,6 +1279,8 @@ function renderLineasSII(i) {
           ${(ln.areas||[]).map((a, ai) => filaAreaHTML(i, li, ai, a.area, a.valor, modo)).join('')}
         </div>
         <button type="button" onclick="agregarAreaLinea(${i},${li})" style="width:100%;padding:6px;margin-top:4px;background:transparent;border:1.5px dashed #003a79;border-radius:7px;color:#003a79;font-size:11px;font-weight:600;cursor:pointer;">+ Agregar área</button>
+        ${modo === 'pct' ? `<button type="button" onclick="sugerirProrrateoSII(${i},${li})" style="width:100%;padding:6px;margin-top:4px;background:#e8f4fd;border:1px solid #2980b9;border-radius:7px;color:#2980b9;font-size:11px;font-weight:600;cursor:pointer;">💡 Sugerir % según ventas del mes anterior</button>` : ''}
+        <div id="sugerenciaSII-${i}-${li}" style="display:none;font-size:11px;color:#2980b9;margin-top:4px;padding:5px 8px;background:#e8f4fd;border-radius:6px;"></div>
         <div id="areasHint-${i}-${li}" style="font-size:11px;margin-top:4px;"></div>
       </div>` : ''}
     </div>`;
@@ -1438,7 +1481,7 @@ function prepararFacturasParaImportar() {
       // Si el ítem reparte por área, cada producto debe decir a qué área va
       const sinArea = f.detalle.filter(d => {
         const it = ITEMS.find(x => x.item === d.item);
-        return it && (it.area === 'SELECCIONAR' || it.area === 'PRORRATEADO') && !d.area;
+        return it && it.area === 'SELECCIONAR' && !d.area;
       }).length;
       if (sinArea) { problemas.push(`${etiqueta}: ${sinArea} producto(s) sin área asignada`); return; }
     } else if (lineasValidas.length > 1) {
