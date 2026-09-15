@@ -991,17 +991,10 @@ function renderTarjetaSII(f, i) {
       Neto $${Math.round(f.neto).toLocaleString('es-CL')} · IVA $${Math.round(f.iva).toLocaleString('es-CL')}${f.otroImpuesto ? ` · Otro imp. $${Math.round(f.otroImpuesto).toLocaleString('es-CL')} (${f.tasaOtroImpuesto}%)` : ''}
     </div>
     ${etiquetas.length ? `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">${etiquetas.join('')}</div>` : ''}
-    ${(f.detalle && f.detalle.length) ? `<div style="margin-top:8px;background:#fafafa;border-radius:7px;padding:8px;">
-      <div style="font-size:11px;font-weight:700;color:#666;margin-bottom:4px;">Detalle del documento</div>
-      ${f.detalle.map(d => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;color:#555;padding:2px 0;">
-        <span style="flex:1;min-width:0;">${d.descripcion}${d.cantidad ? ` <span style="color:#aaa;">×${d.cantidad}</span>` : ''}</span>
-        <span style="white-space:nowrap;font-weight:600;">$${Math.abs(d.monto).toLocaleString('es-CL')}</span>
-      </div>`).join('')}
-    </div>` : ''}
 
     <div style="margin-top:10px;padding-top:10px;border-top:1px solid #f0f0f0;">
       <div id="lineasSII-${i}"></div>
-      <button type="button" onclick="dividirFacturaSII(${i})" style="width:100%;padding:7px;margin-top:6px;background:transparent;border:1.5px dashed #856404;border-radius:7px;color:#856404;font-size:11px;font-weight:600;cursor:pointer;">✂️ Dividir factura (agregar otro ítem)</button>
+      ${(f.detalle && f.detalle.length) ? '' : `<button type="button" onclick="dividirFacturaSII(${i})" style="width:100%;padding:7px;margin-top:6px;background:transparent;border:1.5px dashed #856404;border-radius:7px;color:#856404;font-size:11px;font-weight:600;cursor:pointer;">✂️ Dividir factura (agregar otro ítem)</button>`}
       <div id="totalLineasSII-${i}" style="font-size:11px;margin-top:6px;text-align:right;"></div>
 
       ${f.esNotaCredito ? `
@@ -1039,11 +1032,123 @@ function quitarLineaSII(i, li) {
   renderLineasSII(i);
 }
 
+// Cuando el documento trae detalle, cada producto se asigna a un ítem de gasto y los
+// montos se calculan solos — no hay que escribirlos ni cuadrarlos a mano.
+// Los montos del detalle vienen netos, así que se escalan a bruto según el total real.
+function factorBrutoSII(f) {
+  const sumaDetalle = (f.detalle||[]).reduce((s,d) => s + Math.abs(d.monto), 0);
+  return sumaDetalle > 0 ? Math.abs(f.total) / sumaDetalle : 1;
+}
+
+function asignarLineaDetalle(i, di, item) {
+  const f = facturasSII[i];
+  f.detalle[di].item = item;
+  sincronizarLineasDesdeDetalle(i);
+  renderLineasSII(i);
+}
+
+// Agrupa las líneas del detalle por ítem y arma las "lineas" de clasificación,
+// con el monto bruto que le corresponde a cada grupo.
+function sincronizarLineasDesdeDetalle(i) {
+  const f = facturasSII[i];
+  const factor = factorBrutoSII(f);
+  const porItem = {};
+  (f.detalle||[]).forEach(d => {
+    if (!d.item) return;
+    if (!porItem[d.item]) porItem[d.item] = 0;
+    porItem[d.item] += Math.abs(d.monto) * factor;
+  });
+
+  const previas = f.lineas || [];
+  f.lineas = Object.keys(porItem).map(item => {
+    const anterior = previas.find(l => l.item === item) || {};
+    return {
+      item,
+      monto: Math.round(porItem[item]),
+      areas: anterior.areas || [],
+      modoArea: anterior.modoArea || 'monto'
+    };
+  });
+  if (!f.lineas.length) f.lineas = [{ item: '', areas: [], modoArea: 'monto' }];
+}
+
+function renderDetalleAsignable(i) {
+  const f = facturasSII[i];
+  if (!f.detalle || !f.detalle.length) return '';
+  const factor = factorBrutoSII(f);
+  const sinAsignar = f.detalle.filter(d => !d.item).length;
+  return `<div style="margin-top:8px;background:#fafafa;border-radius:7px;padding:8px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <span style="font-size:11px;font-weight:700;color:#666;">Asignar productos a ítems</span>
+      ${sinAsignar ? `<span style="font-size:10px;color:#c0392b;">${sinAsignar} sin asignar</span>` : '<span style="font-size:10px;color:#155724;">✓ todos asignados</span>'}
+    </div>
+    ${f.detalle.map((d, di) => `<div style="display:flex;gap:6px;align-items:center;padding:4px 0;border-bottom:1px solid #f0f0f0;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:11px;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d.descripcion}</div>
+        <div style="font-size:10px;color:#aaa;">${d.cantidad ? `×${d.cantidad} · ` : ''}$${Math.round(Math.abs(d.monto)*factor).toLocaleString('es-CL')}</div>
+      </div>
+      <select onchange="asignarLineaDetalle(${i},${di},this.value)" style="width:135px;padding:5px;border:1px solid ${d.item ? '#155724' : '#ddd'};border-radius:6px;font-size:11px;">
+        <option value="">— ítem —</option>
+        ${ITEMS.map(it => `<option value="${it.item}" ${d.item === it.item ? 'selected' : ''}>${it.item}</option>`).join('')}
+      </select>
+    </div>`).join('')}
+    ${f.detalle.length > 1 ? `<button type="button" onclick="asignarTodoElDetalle(${i})" style="width:100%;padding:5px;margin-top:6px;background:transparent;border:1px dashed #003a79;border-radius:6px;color:#003a79;font-size:10px;font-weight:600;cursor:pointer;">Asignar todos al mismo ítem que el primero</button>` : ''}
+  </div>`;
+}
+
+function asignarTodoElDetalle(i) {
+  const f = facturasSII[i];
+  const primero = f.detalle.find(d => d.item);
+  if (!primero) { alert('Asigna primero un ítem a algún producto'); return; }
+  f.detalle.forEach(d => { d.item = primero.item; });
+  sincronizarLineasDesdeDetalle(i);
+  renderLineasSII(i);
+}
+
 function renderLineasSII(i) {
   const f = facturasSII[i];
   const cont = document.getElementById(`lineasSII-${i}`);
   if (!cont) return;
+  const conDetalle = !!(f.detalle && f.detalle.length);
   const varias = f.lineas.length > 1;
+
+  // Con detalle, el ítem y el monto salen de la asignación de productos: acá solo
+  // queda repartir por área los ítems que lo necesiten.
+  if (conDetalle) {
+    const asignables = renderDetalleAsignable(i);
+    const repartos = f.lineas.filter(ln => ln.item).map((ln, li) => {
+      const itemData = ITEMS.find(it => it.item === ln.item);
+      if (!itemData || (itemData.area !== 'SELECCIONAR' && itemData.area !== 'PRORRATEADO')) return '';
+      const modo = ln.modoArea || 'monto';
+      return `<div style="border:1px solid #eee;border-radius:8px;padding:8px;margin-top:8px;background:#fcfcfc;">
+        <div style="font-size:11px;font-weight:700;color:#003a79;margin-bottom:6px;">${ln.item} · $${Math.round(ln.monto||0).toLocaleString('es-CL')}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:11px;font-weight:600;color:#444;">Distribución por área</span>
+          <div style="display:flex;gap:4px;">
+            <button type="button" onclick="setModoAreaLinea(${i},${li},'monto')" style="padding:3px 8px;border:1px solid #003a79;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;background:${modo==='monto'?'#003a79':'white'};color:${modo==='monto'?'white':'#003a79'};">$</button>
+            <button type="button" onclick="setModoAreaLinea(${i},${li},'pct')" style="padding:3px 8px;border:1px solid #003a79;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;background:${modo==='pct'?'#003a79':'white'};color:${modo==='pct'?'white':'#003a79'};">%</button>
+          </div>
+        </div>
+        <div id="areasFilas-${i}-${li}">
+          ${(ln.areas||[]).map((a, ai) => filaAreaHTML(i, li, ai, a.area, a.valor, modo)).join('')}
+        </div>
+        <button type="button" onclick="agregarAreaLinea(${i},${li})" style="width:100%;padding:6px;margin-top:4px;background:transparent;border:1.5px dashed #003a79;border-radius:7px;color:#003a79;font-size:11px;font-weight:600;cursor:pointer;">+ Agregar área</button>
+        <div id="areasHint-${i}-${li}" style="font-size:11px;margin-top:4px;"></div>
+      </div>`;
+    }).join('');
+
+    cont.innerHTML = asignables + repartos;
+    f.lineas.forEach((ln, li) => {
+      const itemData = ITEMS.find(it => it.item === ln.item);
+      if (itemData && (itemData.area === 'SELECCIONAR' || itemData.area === 'PRORRATEADO')) {
+        if (!ln.areas || !ln.areas.length) agregarAreaLinea(i, li);
+        else recalcularAreasLinea(i, li);
+      }
+    });
+    const elTotal = document.getElementById(`totalLineasSII-${i}`);
+    if (elTotal) elTotal.textContent = '';
+    return;
+  }
 
   cont.innerHTML = f.lineas.map((ln, li) => {
     const itemData = ITEMS.find(it => it.item === ln.item);
@@ -1158,7 +1263,11 @@ function onAreaLineaChange(i, li, ai, campo, valor) {
 // o el total del documento si tiene un solo ítem.
 function baseLinea(i, li) {
   const f = facturasSII[i];
-  return f.lineas.length > 1 ? (parseFloat(f.lineas[li].monto) || 0) : Math.abs(f.total);
+  const ln = f.lineas[li];
+  // Con detalle, o al dividir a mano, cada línea tiene su propio monto;
+  // si la factura es de un solo ítem sin detalle, la base es el total del documento.
+  if ((f.detalle && f.detalle.length) || f.lineas.length > 1) return parseFloat(ln.monto) || 0;
+  return Math.abs(f.total);
 }
 
 function recalcularAreasLinea(i, li) {
@@ -1265,8 +1374,13 @@ function prepararFacturasParaImportar() {
     const totalAbs = Math.abs(f.total);
     const signo = f.total < 0 ? -1 : 1; // notas de crédito se guardan en negativo
 
-    // Si hay varios ítems, sus montos deben sumar el total del documento
-    if (lineasValidas.length > 1) {
+    // Con detalle: los montos ya vienen calculados de la asignación de productos,
+    // así que solo se exige que no queden productos sin asignar.
+    if (f.detalle && f.detalle.length) {
+      const sinAsignar = f.detalle.filter(d => !d.item).length;
+      if (sinAsignar) { problemas.push(`${etiqueta}: ${sinAsignar} producto(s) sin asignar a un ítem`); return; }
+    } else if (lineasValidas.length > 1) {
+      // Sin detalle, los montos los escribe el usuario y deben cuadrar con el total
       const sumaLineas = lineasValidas.reduce((s,ln) => s + (parseFloat(ln.monto)||0), 0);
       if (Math.abs(sumaLineas - totalAbs) >= 1) {
         problemas.push(`${etiqueta}: los ítems suman $${Math.round(sumaLineas).toLocaleString('es-CL')} y el total es $${Math.round(totalAbs).toLocaleString('es-CL')}`);
@@ -1308,7 +1422,11 @@ function prepararFacturasParaImportar() {
       rut: f.rut, razonSocial: f.razonSocial, folio: f.folio,
       fechaDocto: f.fecha.replace(/\//g,'-'), // dd/mm/yyyy -> dd-mm-yyyy, como guarda la app
       total: f.total, neto: f.neto, iva: f.iva, esHarina: f.esHarina,
-      estado: f.estado, fechaEstado: f.fechaEstado, lineas: lineasFinal
+      estado: f.estado, fechaEstado: f.fechaEstado, lineas: lineasFinal,
+      detalle: (f.detalle || []).map(d => ({
+        descripcion: d.descripcion, codigo: d.codigo, cantidad: d.cantidad,
+        precioUnitario: d.precioUnitario, monto: d.monto * signo, item: d.item || ''
+      }))
     });
   });
 
@@ -1336,7 +1454,7 @@ async function importarFacturasSII() {
     const d = await r.json();
     if (d.ok) {
       showToast(`✅ ${d.filas} registro(s) importados`);
-      hint.innerHTML = `<span style="color:#155724;">✓ Importado: ${d.filas} línea(s) de gasto${d.vencimientos ? ` y ${d.vencimientos} obligación(es) pendiente(s)` : ''}</span>`;
+      hint.innerHTML = `<span style="color:#155724;">✓ Importado: ${d.filas} línea(s) de gasto${d.vencimientos ? ` · ${d.vencimientos} obligación(es)` : ''}${d.detalle ? ` · ${d.detalle} producto(s) en Detalle Compras` : ''}</span>`;
       // Marcar como importadas para que no se repitan en esta misma sesión
       listas.forEach(l => {
         const f = facturasSII.find(x => x.rut === l.rut && x.folio === l.folio);
