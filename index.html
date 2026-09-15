@@ -184,6 +184,7 @@
     <div class="nav-tab active" onclick="showSection('registrar',this)">📝 Registrar</div>
     <div class="nav-tab" onclick="showSection('obligaciones',this)">📅 Obligaciones<span class="badge" id="badgeOblig"></span></div>
     <div class="nav-tab" onclick="showSection('analisis',this)">📊 Análisis</div>
+    <div class="nav-tab" onclick="showSection('carga',this)">📥 Carga SII</div>
     <div class="nav-tab" onclick="showSection('items',this)">📋 Ítems</div>
   </div>
 </div>
@@ -395,6 +396,19 @@
     </div>
 
   </div>
+</div>
+</div>
+
+<!-- ===== SECCIÓN CARGA MASIVA SII ===== -->
+<div id="sec-carga" class="section">
+<div class="container">
+  <div class="card">
+    <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:8px;">📥 Importar registro de compras del SII</div>
+    <div style="font-size:12px;color:#888;margin-bottom:12px;">Descarga el Registro de Compras desde el SII y súbelo acá en formato CSV.</div>
+    <input type="file" id="archivoSII" accept=".csv" onchange="leerArchivoSII(this)" style="width:100%;padding:10px;border:1.5px dashed #003a79;border-radius:8px;font-size:13px;background:#f8faff;"/>
+    <div id="cargaResumen" style="margin-top:12px;"></div>
+  </div>
+  <div id="cargaLista"></div>
 </div>
 </div>
 
@@ -697,6 +711,114 @@ function showSection(id, tab) {
   if (id === 'obligaciones') cargarObligaciones();
   if (id === 'analisis') cargarAnalisis();
   if (id === 'items') renderItems();
+}
+
+// ─── CARGA MASIVA SII ─────────────────────────
+let facturasSII = []; // facturas leídas del archivo, aún no importadas
+
+const TIPO_DOC_LABEL = { '33': 'Factura', '34': 'Factura exenta', '39': 'Boleta', '61': 'Nota de crédito', '56': 'Nota de débito' };
+
+function parseCSVSII(texto) {
+  // El archivo del SII usa ';' como separador y trae encabezados en la primera línea.
+  const lineas = texto.split(/\r?\n/).filter(l => l.trim());
+  if (!lineas.length) return [];
+  const headers = lineas[0].split(';').map(h => h.trim());
+
+  const idx = (nombre) => headers.findIndex(h =>
+    h.toLowerCase().replace(/[^a-z]/g,'') === nombre.toLowerCase().replace(/[^a-z]/g,''));
+
+  const iTipo = idx('Tipo Doc'), iRut = idx('RUT Proveedor'), iRazon = idx('Razon Social'),
+        iFolio = idx('Folio'), iFecha = idx('Fecha Docto'), iExento = idx('Monto Exento'),
+        iNeto = idx('Monto Neto'), iIva = idx('Monto IVA Recuperable'), iTotal = idx('Monto Total'),
+        iOtroValor = idx('Valor Otro Impuesto'), iOtraTasa = idx('Tasa Otro Impuesto');
+
+  const num = (v) => { const n = parseFloat(String(v||'').replace(/\./g,'').replace(',','.')); return isNaN(n) ? 0 : n; };
+
+  return lineas.slice(1).map((linea, i) => {
+    const c = linea.split(';');
+    const tipoDoc = String(c[iTipo]||'').trim();
+    const esNotaCredito = tipoDoc === '61';
+    const signo = esNotaCredito ? -1 : 1; // las notas de crédito restan
+    const tasaOtro = num(c[iOtraTasa]);
+    return {
+      idx: i,
+      tipoDoc,
+      tipoLabel: TIPO_DOC_LABEL[tipoDoc] || ('Doc ' + tipoDoc),
+      esNotaCredito,
+      rut: String(c[iRut]||'').trim(),
+      razonSocial: String(c[iRazon]||'').trim(),
+      folio: String(c[iFolio]||'').trim(),
+      fecha: String(c[iFecha]||'').trim(), // dd/mm/yyyy
+      exento: num(c[iExento]) * signo,
+      neto: num(c[iNeto]) * signo,
+      iva: num(c[iIva]) * signo,
+      total: num(c[iTotal]) * signo,
+      otroImpuesto: num(c[iOtroValor]) * signo,
+      tasaOtroImpuesto: tasaOtro,
+      // El impuesto adicional a la harina es tasa 12 — se detecta solo, sin marcarlo a mano.
+      esHarina: tasaOtro === 12
+    };
+  }).filter(f => f.rut && f.folio);
+}
+
+function leerArchivoSII(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      facturasSII = parseCSVSII(e.target.result);
+      renderCargaSII();
+    } catch(err) {
+      document.getElementById('cargaResumen').innerHTML = `<div style="color:#c0392b;font-size:13px;">Error al leer el archivo: ${err.message}</div>`;
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function renderCargaSII() {
+  const resumen = document.getElementById('cargaResumen');
+  const lista = document.getElementById('cargaLista');
+
+  if (!facturasSII.length) {
+    resumen.innerHTML = '<div style="color:#c0392b;font-size:13px;">No se encontraron documentos en el archivo.</div>';
+    lista.innerHTML = '';
+    return;
+  }
+
+  const totalDocs = facturasSII.length;
+  const notasCredito = facturasSII.filter(f => f.esNotaCredito).length;
+  const conHarina = facturasSII.filter(f => f.esHarina).length;
+  const sumaTotal = facturasSII.reduce((s,f) => s + f.total, 0);
+
+  resumen.innerHTML = `
+    <div style="background:#f0f7ff;border:1px solid #003a79;border-radius:8px;padding:10px 12px;font-size:13px;">
+      <div style="font-weight:700;color:#003a79;margin-bottom:4px;">${totalDocs} documentos leídos</div>
+      <div style="color:#555;">Total: <strong>$${Math.round(sumaTotal).toLocaleString('es-CL')}</strong></div>
+      ${notasCredito ? `<div style="color:#856404;">${notasCredito} nota(s) de crédito — se restan del total</div>` : ''}
+      ${conHarina ? `<div style="color:#856404;">🌾 ${conHarina} con impuesto harina (12%)</div>` : ''}
+    </div>`;
+
+  lista.innerHTML = facturasSII.map(f => {
+    const montoColor = f.esNotaCredito ? '#c0392b' : '#003a79';
+    const etiquetas = [];
+    if (f.esNotaCredito) etiquetas.push('<span style="background:#fff0f0;color:#c0392b;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;">NOTA DE CRÉDITO</span>');
+    if (f.esHarina) etiquetas.push('<span style="background:#fff8e1;color:#856404;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;">🌾 HARINA 12%</span>');
+    if (f.tipoDoc === '34') etiquetas.push('<span style="background:#eef;color:#555;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;">EXENTA</span>');
+    return `<div class="card" style="padding:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;font-size:14px;color:#222;">${f.razonSocial}</div>
+          <div style="font-size:11px;color:#888;margin-top:2px;">${f.tipoLabel} N° ${f.folio} · ${f.fecha} · ${f.rut}</div>
+        </div>
+        <div style="font-size:16px;font-weight:800;color:${montoColor};white-space:nowrap;">$${Math.round(f.total).toLocaleString('es-CL')}</div>
+      </div>
+      <div style="font-size:11px;color:#666;margin-top:6px;">
+        Neto $${Math.round(f.neto).toLocaleString('es-CL')} · IVA $${Math.round(f.iva).toLocaleString('es-CL')}${f.otroImpuesto ? ` · Otro imp. $${Math.round(f.otroImpuesto).toLocaleString('es-CL')} (${f.tasaOtroImpuesto}%)` : ''}
+      </div>
+      ${etiquetas.length ? `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">${etiquetas.join('')}</div>` : ''}
+    </div>`;
+  }).join('');
 }
 
 // ─── ESTADO REGISTRO ──────────────────────────
