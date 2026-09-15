@@ -765,9 +765,17 @@ function leerArchivoSII(input) {
   const file = input.files && input.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     try {
       facturasSII = parseCSVSII(e.target.result);
+      // Marcar las que ya están en el Sheet para no importarlas dos veces
+      document.getElementById('cargaResumen').innerHTML = '<div style="font-size:13px;color:#888;">Revisando documentos ya importados...</div>';
+      try {
+        const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getFoliosImportados' }) });
+        const d = await r.json();
+        const yaImportados = new Set(d.folios || []);
+        facturasSII.forEach(f => { f.yaImportada = yaImportados.has(f.rut + '|' + f.folio); });
+      } catch(err) { /* si falla, se muestran todas como pendientes */ }
       renderCargaSII();
     } catch(err) {
       document.getElementById('cargaResumen').innerHTML = `<div style="color:#c0392b;font-size:13px;">Error al leer el archivo: ${err.message}</div>`;
@@ -787,18 +795,21 @@ function renderCargaSII() {
   }
 
   const totalDocs = facturasSII.length;
-  const notasCredito = facturasSII.filter(f => f.esNotaCredito).length;
-  const conHarina = facturasSII.filter(f => f.esHarina).length;
-  const sumaTotal = facturasSII.reduce((s,f) => s + f.total, 0);
+  const yaImportadas = facturasSII.filter(f => f.yaImportada).length;
+  const pendientes = totalDocs - yaImportadas;
+  const notasCredito = facturasSII.filter(f => f.esNotaCredito && !f.yaImportada).length;
+  const conHarina = facturasSII.filter(f => f.esHarina && !f.yaImportada).length;
+  const sumaTotal = facturasSII.filter(f => !f.yaImportada).reduce((s,f) => s + f.total, 0);
 
   resumen.innerHTML = `
     <div style="background:#f0f7ff;border:1px solid #003a79;border-radius:8px;padding:10px 12px;font-size:13px;">
-      <div style="font-weight:700;color:#003a79;margin-bottom:4px;">${totalDocs} documentos leídos</div>
-      <div style="color:#555;">Total: <strong>$${Math.round(sumaTotal).toLocaleString('es-CL')}</strong></div>
+      <div style="font-weight:700;color:#003a79;margin-bottom:4px;">${totalDocs} documentos en el archivo</div>
+      ${yaImportadas ? `<div style="color:#888;">${yaImportadas} ya importado(s) — se omiten</div>` : ''}
+      <div style="color:#555;"><strong>${pendientes} por importar</strong> · Total: <strong>$${Math.round(sumaTotal).toLocaleString('es-CL')}</strong></div>
       ${notasCredito ? `<div style="color:#856404;">${notasCredito} nota(s) de crédito — se restan del total</div>` : ''}
       ${conHarina ? `<div style="color:#856404;">🌾 ${conHarina} con impuesto harina (12%)</div>` : ''}
     </div>
-    <div style="margin-top:10px;padding:10px 12px;background:#fafafa;border-radius:8px;">
+    ${pendientes ? `<div style="margin-top:10px;padding:10px 12px;background:#fafafa;border-radius:8px;">
       <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:6px;">Aplicar a todas</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
         <button type="button" onclick="aplicarEstadoTodas('pagada')" style="flex:1;min-width:110px;padding:7px;background:#f0fff4;border:1px solid #155724;border-radius:7px;font-size:12px;font-weight:600;color:#155724;cursor:pointer;">✓ Todas pagadas</button>
@@ -809,10 +820,13 @@ function renderCargaSII() {
         <input type="date" id="fechaLoteSII" style="flex:1;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:12px;"/>
         <button type="button" onclick="aplicarFechaTodas()" style="padding:6px 10px;background:#f0f4ff;border:1px solid #003a79;border-radius:6px;font-size:12px;font-weight:600;color:#003a79;cursor:pointer;white-space:nowrap;">Aplicar</button>
       </div>
-    </div>`;
+    </div>
+    <button type="button" id="btnImportarSII" onclick="importarFacturasSII()" style="width:100%;padding:12px;margin-top:12px;background:#003a79;color:white;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">📥 Importar las clasificadas</button>
+    <div id="importHint" style="font-size:12px;color:#888;margin-top:6px;text-align:center;"></div>` : ''}`;
 
   lista.innerHTML = facturasSII.map((f, i) => renderTarjetaSII(f, i)).join('');
   facturasSII.forEach((f, i) => {
+    if (f.yaImportada) return;
     if (!f.lineas || !f.lineas.length) f.lineas = [{ item: '', areas: [], modoArea: 'monto' }];
     renderLineasSII(i);
     if (f.estado) setEstadoSII(i, f.estado, true);
@@ -843,6 +857,21 @@ function sumarEnSII(inputId) {
 
 function renderTarjetaSII(f, i) {
   const montoColor = f.esNotaCredito ? '#c0392b' : '#003a79';
+
+  // Ya importada: solo informativa, sin controles (evita duplicar el documento)
+  if (f.yaImportada) {
+    return `<div class="card" style="padding:12px;opacity:0.55;background:#fafafa;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;font-size:14px;color:#666;">${f.razonSocial}</div>
+          <div style="font-size:11px;color:#999;margin-top:2px;">${f.tipoLabel} N° ${f.folio} · ${f.fecha}</div>
+        </div>
+        <div style="font-size:14px;font-weight:700;color:#999;white-space:nowrap;">$${Math.round(f.total).toLocaleString('es-CL')}</div>
+      </div>
+      <div style="margin-top:6px;"><span style="background:#e8e8e8;color:#666;font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;">✓ YA IMPORTADA</span></div>
+    </div>`;
+  }
+
   const etiquetas = [];
   if (f.esNotaCredito) etiquetas.push('<span style="background:#fff0f0;color:#c0392b;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;">NOTA DE CRÉDITO</span>');
   if (f.esHarina) etiquetas.push('<span style="background:#fff8e1;color:#856404;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;">🌾 HARINA 12%</span>');
@@ -1051,8 +1080,10 @@ function fechaSIIaISO(str) {
 
 function setEstadoSII(i, estado, soloRefrescar) {
   const f = facturasSII[i];
+  if (f.yaImportada) return; // no tiene controles en pantalla
   if (!soloRefrescar) f.estado = estado;
   const btnP = document.getElementById(`btnPagada-${i}`), btnD = document.getElementById(`btnPendiente-${i}`);
+  if (!btnP || !btnD) return;
   btnP.style.background = estado === 'pagada' ? '#155724' : 'white';
   btnP.style.color = estado === 'pagada' ? 'white' : '#666';
   btnD.style.background = estado === 'pendiente' ? '#856404' : 'white';
@@ -1085,6 +1116,112 @@ function aplicarFechaTodas() {
     const input = document.getElementById(`fechaSII-${i}`);
     if (input) { input.value = fecha; f.fechaEstado = fecha; }
   });
+}
+
+// Convierte lo clasificado en pantalla al formato que espera el backend.
+// Resuelve los porcentajes a montos, para que el servidor reciba todo ya calculado.
+function prepararFacturasParaImportar() {
+  const listas = [], problemas = [];
+
+  facturasSII.forEach((f, i) => {
+    if (f.yaImportada) return;
+    const lineasValidas = (f.lineas || []).filter(ln => ln.item);
+    if (!lineasValidas.length) return; // sin clasificar: se omite en silencio
+
+    const etiqueta = `${f.razonSocial} F.${f.folio}`;
+    if (!f.estado) { problemas.push(`${etiqueta}: falta marcar pagada o pendiente`); return; }
+    if (!f.fechaEstado) { problemas.push(`${etiqueta}: falta la fecha`); return; }
+
+    const totalAbs = Math.abs(f.total);
+    const signo = f.total < 0 ? -1 : 1; // notas de crédito se guardan en negativo
+
+    // Si hay varios ítems, sus montos deben sumar el total del documento
+    if (lineasValidas.length > 1) {
+      const sumaLineas = lineasValidas.reduce((s,ln) => s + (parseFloat(ln.monto)||0), 0);
+      if (Math.abs(sumaLineas - totalAbs) >= 1) {
+        problemas.push(`${etiqueta}: los ítems suman $${Math.round(sumaLineas).toLocaleString('es-CL')} y el total es $${Math.round(totalAbs).toLocaleString('es-CL')}`);
+        return;
+      }
+    }
+
+    const lineasFinal = [];
+    let errorLinea = false;
+    lineasValidas.forEach(ln => {
+      const itemData = ITEMS.find(it => it.item === ln.item) || {};
+      const base = lineasValidas.length > 1 ? (parseFloat(ln.monto)||0) : totalAbs;
+      let areas = [];
+
+      if (itemData.area === 'SELECCIONAR' || itemData.area === 'PRORRATEADO') {
+        const areasValidas = (ln.areas||[]).filter(a => a.area && a.valor > 0);
+        if (!areasValidas.length) { problemas.push(`${etiqueta} (${ln.item}): falta repartir por área`); errorLinea = true; return; }
+        const suma = areasValidas.reduce((s,a) => s + a.valor, 0);
+        if ((ln.modoArea||'monto') === 'pct') {
+          if (Math.abs(suma - 100) >= 0.01) { problemas.push(`${etiqueta} (${ln.item}): los porcentajes suman ${suma}%, deben sumar 100%`); errorLinea = true; return; }
+          areas = areasValidas.map(a => ({ area: a.area, monto: Math.round(base * a.valor / 100) * signo }));
+        } else {
+          if (Math.abs(suma - base) >= 1) { problemas.push(`${etiqueta} (${ln.item}): las áreas suman $${Math.round(suma).toLocaleString('es-CL')} y debe ser $${Math.round(base).toLocaleString('es-CL')}`); errorLinea = true; return; }
+          areas = areasValidas.map(a => ({ area: a.area, monto: Math.round(a.valor) * signo }));
+        }
+      } else {
+        areas = [{ area: itemData.area || '', monto: Math.round(base) * signo }]; // área fija
+      }
+
+      lineasFinal.push({
+        item: ln.item, categoria: itemData.categoria || '', tipo: itemData.tipo || '',
+        subTipo: itemData.subTipo || '', areas
+      });
+    });
+
+    if (errorLinea) return;
+
+    listas.push({
+      rut: f.rut, razonSocial: f.razonSocial, folio: f.folio,
+      fechaDocto: f.fecha.replace(/\//g,'-'), // dd/mm/yyyy -> dd-mm-yyyy, como guarda la app
+      total: f.total, neto: f.neto, iva: f.iva, esHarina: f.esHarina,
+      estado: f.estado, fechaEstado: f.fechaEstado, lineas: lineasFinal
+    });
+  });
+
+  return { listas, problemas };
+}
+
+async function importarFacturasSII() {
+  const { listas, problemas } = prepararFacturasParaImportar();
+  const hint = document.getElementById('importHint');
+
+  if (problemas.length) {
+    hint.innerHTML = `<div style="color:#c0392b;text-align:left;"><strong>Revisa antes de importar:</strong><br>${problemas.slice(0,6).map(p=>'• '+p).join('<br>')}${problemas.length>6?`<br>• ...y ${problemas.length-6} más`:''}</div>`;
+    return;
+  }
+  if (!listas.length) { hint.innerHTML = '<span style="color:#c0392b;">No hay facturas clasificadas para importar</span>'; return; }
+
+  if (!confirm(`¿Importar ${listas.length} factura(s) al registro de gastos?`)) return;
+
+  const btn = document.getElementById('btnImportarSII');
+  btn.disabled = true; btn.textContent = '⏳ Importando...';
+  hint.textContent = '';
+
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'importarSII', facturas: listas }) });
+    const d = await r.json();
+    if (d.ok) {
+      showToast(`✅ ${d.filas} registro(s) importados`);
+      hint.innerHTML = `<span style="color:#155724;">✓ Importado: ${d.filas} línea(s) de gasto${d.vencimientos ? ` y ${d.vencimientos} obligación(es) pendiente(s)` : ''}</span>`;
+      // Marcar como importadas para que no se repitan en esta misma sesión
+      listas.forEach(l => {
+        const f = facturasSII.find(x => x.rut === l.rut && x.folio === l.folio);
+        if (f) f.yaImportada = true;
+      });
+      renderCargaSII();
+      cargarUltimosRegistros();
+    } else {
+      btn.disabled = false; btn.textContent = '📥 Importar las clasificadas';
+      hint.innerHTML = `<span style="color:#c0392b;">Error: ${d.error || 'no se pudo importar'}</span>`;
+    }
+  } catch(e) {
+    btn.disabled = false; btn.textContent = '📥 Importar las clasificadas';
+    hint.innerHTML = '<span style="color:#c0392b;">Error de conexión</span>';
+  }
 }
 
 // ─── ESTADO REGISTRO ──────────────────────────
