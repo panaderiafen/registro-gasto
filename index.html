@@ -811,148 +811,213 @@ function renderCargaSII() {
       </div>
     </div>`;
 
-  lista.innerHTML = facturasSII.map((f, i) => {
-    const montoColor = f.esNotaCredito ? '#c0392b' : '#003a79';
-    const etiquetas = [];
-    if (f.esNotaCredito) etiquetas.push('<span style="background:#fff0f0;color:#c0392b;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;">NOTA DE CRÉDITO</span>');
-    if (f.esHarina) etiquetas.push('<span style="background:#fff8e1;color:#856404;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;">🌾 HARINA 12%</span>');
-    if (f.tipoDoc === '34') etiquetas.push('<span style="background:#eef;color:#555;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;">EXENTA</span>');
-    return `<div class="card" style="padding:12px;" id="cardSII-${i}">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-        <div style="flex:1;min-width:0;">
-          <div style="font-weight:700;font-size:14px;color:#222;">${f.razonSocial}</div>
-          <div style="font-size:11px;color:#888;margin-top:2px;">${f.tipoLabel} N° ${f.folio} · ${f.fecha} · ${f.rut}</div>
-        </div>
-        <div style="font-size:16px;font-weight:800;color:${montoColor};white-space:nowrap;">$${Math.round(f.total).toLocaleString('es-CL')}</div>
-      </div>
-      <div style="font-size:11px;color:#666;margin-top:6px;">
-        Neto $${Math.round(f.neto).toLocaleString('es-CL')} · IVA $${Math.round(f.iva).toLocaleString('es-CL')}${f.otroImpuesto ? ` · Otro imp. $${Math.round(f.otroImpuesto).toLocaleString('es-CL')} (${f.tasaOtroImpuesto}%)` : ''}
-      </div>
-      ${etiquetas.length ? `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">${etiquetas.join('')}</div>` : ''}
+  lista.innerHTML = facturasSII.map((f, i) => renderTarjetaSII(f, i)).join('');
+  facturasSII.forEach((f, i) => {
+    if (!f.lineas || !f.lineas.length) f.lineas = [{ item: '', areas: [], modoArea: 'monto' }];
+    renderLineasSII(i);
+    if (f.estado) setEstadoSII(i, f.estado, true);
+  });
+}
 
-      <div style="margin-top:10px;padding-top:10px;border-top:1px solid #f0f0f0;">
-        <select id="itemSII-${i}" onchange="onItemSIIChange(${i})" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:8px;">
-          <option value="">— Clasificar ítem de gasto —</option>
-          ${ITEMS.map(it => `<option value="${it.item}" ${f.item === it.item ? 'selected' : ''}>${it.item}</option>`).join('')}
-        </select>
+function renderTarjetaSII(f, i) {
+  const montoColor = f.esNotaCredito ? '#c0392b' : '#003a79';
+  const etiquetas = [];
+  if (f.esNotaCredito) etiquetas.push('<span style="background:#fff0f0;color:#c0392b;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;">NOTA DE CRÉDITO</span>');
+  if (f.esHarina) etiquetas.push('<span style="background:#fff8e1;color:#856404;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;">🌾 HARINA 12%</span>');
+  if (f.tipoDoc === '34') etiquetas.push('<span style="background:#eef;color:#555;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;">EXENTA</span>');
+  return `<div class="card" style="padding:12px;" id="cardSII-${i}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;font-size:14px;color:#222;">${f.razonSocial}</div>
+        <div style="font-size:11px;color:#888;margin-top:2px;">${f.tipoLabel} N° ${f.folio} · ${f.fecha} · ${f.rut}</div>
+      </div>
+      <div style="font-size:16px;font-weight:800;color:${montoColor};white-space:nowrap;">$${Math.round(f.total).toLocaleString('es-CL')}</div>
+    </div>
+    <div style="font-size:11px;color:#666;margin-top:6px;">
+      Neto $${Math.round(f.neto).toLocaleString('es-CL')} · IVA $${Math.round(f.iva).toLocaleString('es-CL')}${f.otroImpuesto ? ` · Otro imp. $${Math.round(f.otroImpuesto).toLocaleString('es-CL')} (${f.tasaOtroImpuesto}%)` : ''}
+    </div>
+    ${etiquetas.length ? `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">${etiquetas.join('')}</div>` : ''}
 
-        <div id="areasSII-${i}" class="hidden">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-            <span style="font-size:12px;font-weight:600;color:#444;">Distribución por área</span>
-            <div style="display:flex;gap:4px;">
-              <button type="button" onclick="setModoAreaSII(${i},'monto')" id="btnModoMonto-${i}" style="padding:3px 8px;border:1px solid #003a79;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;background:#003a79;color:white;">$</button>
-              <button type="button" onclick="setModoAreaSII(${i},'pct')" id="btnModoPct-${i}" style="padding:3px 8px;border:1px solid #003a79;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;background:white;color:#003a79;">%</button>
-            </div>
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid #f0f0f0;">
+      <div id="lineasSII-${i}"></div>
+      <button type="button" onclick="dividirFacturaSII(${i})" style="width:100%;padding:7px;margin-top:6px;background:transparent;border:1.5px dashed #856404;border-radius:7px;color:#856404;font-size:11px;font-weight:600;cursor:pointer;">✂️ Dividir factura (agregar otro ítem)</button>
+      <div id="totalLineasSII-${i}" style="font-size:11px;margin-top:6px;text-align:right;"></div>
+
+      <div style="display:flex;gap:6px;margin-top:10px;">
+        <button type="button" onclick="setEstadoSII(${i},'pagada')" id="btnPagada-${i}" style="flex:1;padding:7px;border:1px solid #ddd;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;background:white;color:#666;">✓ Pagada</button>
+        <button type="button" onclick="setEstadoSII(${i},'pendiente')" id="btnPendiente-${i}" style="flex:1;padding:7px;border:1px solid #ddd;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;background:white;color:#666;">🕐 Pendiente</button>
+      </div>
+      <div id="fechaSIIWrap-${i}" class="hidden" style="margin-top:8px;">
+        <label id="fechaSIILabel-${i}" style="font-size:11px;color:#666;display:block;margin-bottom:3px;"></label>
+        <input type="date" id="fechaSII-${i}" onchange="onFechaSIIChange(${i})" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;"/>
+      </div>
+    </div>
+  </div>`;
+}
+
+// Una factura puede contener varios ítems distintos (ej: materia prima + bienestar).
+// Cada "línea" tiene su propio ítem, su monto y su reparto de áreas.
+function dividirFacturaSII(i) {
+  facturasSII[i].lineas.push({ item: '', areas: [], modoArea: 'monto', monto: '' });
+  renderLineasSII(i);
+}
+
+function quitarLineaSII(i, li) {
+  facturasSII[i].lineas.splice(li, 1);
+  renderLineasSII(i);
+}
+
+function renderLineasSII(i) {
+  const f = facturasSII[i];
+  const cont = document.getElementById(`lineasSII-${i}`);
+  if (!cont) return;
+  const varias = f.lineas.length > 1;
+
+  cont.innerHTML = f.lineas.map((ln, li) => {
+    const itemData = ITEMS.find(it => it.item === ln.item);
+    const necesitaAreas = itemData && (itemData.area === 'SELECCIONAR' || itemData.area === 'PRORRATEADO');
+    const modo = ln.modoArea || 'monto';
+    return `<div style="${varias ? 'border:1px solid #eee;border-radius:8px;padding:8px;margin-bottom:8px;background:#fcfcfc;' : ''}">
+      ${varias ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span style="font-size:11px;font-weight:700;color:#856404;">Ítem ${li+1}</span>
+        <button type="button" onclick="quitarLineaSII(${i},${li})" style="background:none;border:none;color:#e74c3c;font-size:16px;cursor:pointer;padding:0 4px;">×</button>
+      </div>` : ''}
+      <select onchange="onItemLineaChange(${i},${li},this.value)" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:${varias || necesitaAreas ? '8' : '0'}px;">
+        <option value="">— Clasificar ítem de gasto —</option>
+        ${ITEMS.map(it => `<option value="${it.item}" ${ln.item === it.item ? 'selected' : ''}>${it.item}</option>`).join('')}
+      </select>
+      ${varias ? `<div style="display:flex;gap:4px;align-items:center;margin-bottom:8px;">
+        <span style="font-size:12px;color:#555;">Monto de este ítem: $</span>
+        <input type="number" value="${ln.monto||''}" oninput="onMontoLineaChange(${i},${li},this.value)" placeholder="0" min="0" style="flex:1;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:13px;text-align:right;"/>
+      </div>` : ''}
+      ${necesitaAreas ? `<div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:12px;font-weight:600;color:#444;">Distribución por área</span>
+          <div style="display:flex;gap:4px;">
+            <button type="button" onclick="setModoAreaLinea(${i},${li},'monto')" style="padding:3px 8px;border:1px solid #003a79;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;background:${modo==='monto'?'#003a79':'white'};color:${modo==='monto'?'white':'#003a79'};">$</button>
+            <button type="button" onclick="setModoAreaLinea(${i},${li},'pct')" style="padding:3px 8px;border:1px solid #003a79;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;background:${modo==='pct'?'#003a79':'white'};color:${modo==='pct'?'white':'#003a79'};">%</button>
           </div>
-          <div id="areasFilasSII-${i}"></div>
-          <button type="button" onclick="agregarAreaSII(${i})" style="width:100%;padding:6px;margin-top:4px;background:transparent;border:1.5px dashed #003a79;border-radius:7px;color:#003a79;font-size:11px;font-weight:600;cursor:pointer;">+ Agregar área</button>
-          <div id="areasHintSII-${i}" style="font-size:11px;margin-top:4px;"></div>
         </div>
-
-        <div style="display:flex;gap:6px;margin-top:10px;">
-          <button type="button" onclick="setEstadoSII(${i},'pagada')" id="btnPagada-${i}" style="flex:1;padding:7px;border:1px solid #ddd;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;background:white;color:#666;">✓ Pagada</button>
-          <button type="button" onclick="setEstadoSII(${i},'pendiente')" id="btnPendiente-${i}" style="flex:1;padding:7px;border:1px solid #ddd;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;background:white;color:#666;">🕐 Pendiente</button>
+        <div id="areasFilas-${i}-${li}">
+          ${(ln.areas||[]).map((a, ai) => filaAreaHTML(i, li, ai, a.area, a.valor, modo)).join('')}
         </div>
-        <div id="fechaSIIWrap-${i}" class="hidden" style="margin-top:8px;">
-          <label id="fechaSIILabel-${i}" style="font-size:11px;color:#666;display:block;margin-bottom:3px;"></label>
-          <input type="date" id="fechaSII-${i}" onchange="onFechaSIIChange(${i})" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;"/>
-        </div>
-      </div>
+        <button type="button" onclick="agregarAreaLinea(${i},${li})" style="width:100%;padding:6px;margin-top:4px;background:transparent;border:1.5px dashed #003a79;border-radius:7px;color:#003a79;font-size:11px;font-weight:600;cursor:pointer;">+ Agregar área</button>
+        <div id="areasHint-${i}-${li}" style="font-size:11px;margin-top:4px;"></div>
+      </div>` : ''}
     </div>`;
   }).join('');
 
-  // Restaurar en pantalla lo que ya estuviera clasificado (al re-renderizar)
-  facturasSII.forEach((f, i) => {
-    if (f.item) onItemSIIChange(i, true);
-    if (f.estado) setEstadoSII(i, f.estado, true);
+  f.lineas.forEach((ln, li) => {
+    const itemData = ITEMS.find(it => it.item === ln.item);
+    if (itemData && (itemData.area === 'SELECCIONAR' || itemData.area === 'PRORRATEADO')) {
+      if (!ln.areas || !ln.areas.length) agregarAreaLinea(i, li);
+      else recalcularAreasLinea(i, li);
+    }
   });
+  actualizarTotalLineas(i);
+}
+
+function filaAreaHTML(i, li, ai, area, valor, modo) {
+  return `<div class="prorrateo-row" style="margin-bottom:6px;">
+    <select onchange="onAreaLineaChange(${i},${li},${ai},'area',this.value)">
+      <option value="">— Área —</option>
+      ${AREAS_OPCIONES.map(a => `<option value="${a}" ${a === area ? 'selected' : ''}>${a}</option>`).join('')}
+    </select>
+    <div style="display:flex;gap:4px;align-items:center;">
+      <input type="number" placeholder="${modo === 'pct' ? '%' : '0'}" min="0" value="${valor||''}" oninput="onAreaLineaChange(${i},${li},${ai},'valor',this.value)" style="width:90px;text-align:right;"/>
+      ${ai > 0 ? `<button type="button" onclick="quitarAreaLinea(${i},${li},${ai})" style="background:none;border:none;color:#e74c3c;font-size:16px;cursor:pointer;padding:0 4px;">×</button>` : ''}
+    </div>
+  </div>`;
+}
+
+function onItemLineaChange(i, li, valor) {
+  facturasSII[i].lineas[li].item = valor;
+  renderLineasSII(i);
+}
+
+function onMontoLineaChange(i, li, valor) {
+  facturasSII[i].lineas[li].monto = parseFloat(valor) || 0;
+  recalcularAreasLinea(i, li);
+  actualizarTotalLineas(i);
+}
+
+function setModoAreaLinea(i, li, modo) {
+  facturasSII[i].lineas[li].modoArea = modo;
+  renderLineasSII(i);
+}
+
+function agregarAreaLinea(i, li) {
+  const ln = facturasSII[i].lineas[li];
+  if (!ln.areas) ln.areas = [];
+  ln.areas.push({ area: '', valor: '' });
+  const cont = document.getElementById(`areasFilas-${i}-${li}`);
+  if (cont) {
+    const ai = ln.areas.length - 1;
+    cont.insertAdjacentHTML('beforeend', filaAreaHTML(i, li, ai, '', '', ln.modoArea || 'monto'));
+  }
+  recalcularAreasLinea(i, li);
+}
+
+function quitarAreaLinea(i, li, ai) {
+  facturasSII[i].lineas[li].areas.splice(ai, 1);
+  renderLineasSII(i);
+}
+
+function onAreaLineaChange(i, li, ai, campo, valor) {
+  const a = facturasSII[i].lineas[li].areas[ai];
+  a[campo] = campo === 'valor' ? (parseFloat(valor) || 0) : valor;
+  recalcularAreasLinea(i, li);
+}
+
+// Base sobre la que se reparte una línea: su propio monto si la factura está dividida,
+// o el total del documento si tiene un solo ítem.
+function baseLinea(i, li) {
+  const f = facturasSII[i];
+  return f.lineas.length > 1 ? (parseFloat(f.lineas[li].monto) || 0) : Math.abs(f.total);
+}
+
+function recalcularAreasLinea(i, li) {
+  const ln = facturasSII[i].lineas[li];
+  const hint = document.getElementById(`areasHint-${i}-${li}`);
+  if (!hint) return;
+  const modo = ln.modoArea || 'monto';
+  const areas = (ln.areas || []).filter(a => a.area && a.valor > 0);
+  if (!areas.length) { hint.textContent = ''; return; }
+  const suma = areas.reduce((s,a) => s + a.valor, 0);
+  const base = baseLinea(i, li);
+
+  if (modo === 'pct') {
+    const ok = Math.abs(suma - 100) < 0.01;
+    hint.textContent = ok ? '✓ 100% repartido' : `Suma: ${suma}% (debe ser 100%)`;
+    hint.style.color = ok ? '#155724' : '#c0392b';
+  } else {
+    const dif = base - suma;
+    const ok = Math.abs(dif) < 1;
+    hint.textContent = ok ? '✓ Cuadra' : `Suma $${Math.round(suma).toLocaleString('es-CL')} — ${dif > 0 ? 'faltan' : 'sobran'} $${Math.round(Math.abs(dif)).toLocaleString('es-CL')}`;
+    hint.style.color = ok ? '#155724' : '#c0392b';
+  }
+}
+
+// Cuando la factura se divide, la suma de los ítems debe cuadrar con el total del documento.
+function actualizarTotalLineas(i) {
+  const f = facturasSII[i];
+  const el = document.getElementById(`totalLineasSII-${i}`);
+  if (!el) return;
+  if (f.lineas.length <= 1) { el.textContent = ''; return; }
+  const suma = f.lineas.reduce((s,ln) => s + (parseFloat(ln.monto) || 0), 0);
+  const total = Math.abs(f.total);
+  const dif = total - suma;
+  const ok = Math.abs(dif) < 1;
+  el.textContent = ok
+    ? `✓ Los ítems suman el total ($${Math.round(total).toLocaleString('es-CL')})`
+    : `Ítems suman $${Math.round(suma).toLocaleString('es-CL')} de $${Math.round(total).toLocaleString('es-CL')} — ${dif > 0 ? 'faltan' : 'sobran'} $${Math.round(Math.abs(dif)).toLocaleString('es-CL')}`;
+  el.style.color = ok ? '#155724' : '#c0392b';
 }
 
 // Convierte dd/mm/yyyy (formato del SII) a yyyy-mm-dd (formato de los inputs date)
 function fechaSIIaISO(str) {
   const m = String(str||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   return m ? `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}` : '';
-}
-
-function onItemSIIChange(i, soloRefrescar) {
-  const f = facturasSII[i];
-  if (!soloRefrescar) f.item = document.getElementById(`itemSII-${i}`).value;
-  const itemData = ITEMS.find(it => it.item === f.item);
-  const wrap = document.getElementById(`areasSII-${i}`);
-  if (!itemData) { wrap.classList.add('hidden'); f.areas = null; return; }
-
-  // El área sale del catálogo de ítems: si es fija, no hay nada que repartir.
-  if (itemData.area === 'SELECCIONAR' || itemData.area === 'PRORRATEADO') {
-    wrap.classList.remove('hidden');
-    const cont = document.getElementById(`areasFilasSII-${i}`);
-    if (!cont.children.length) {
-      if (f.areas && f.areas.length) f.areas.forEach(a => agregarAreaSII(i, a.area, a.valor));
-      else agregarAreaSII(i);
-    }
-  } else {
-    wrap.classList.add('hidden');
-    f.areas = [{ area: itemData.area, valor: Math.abs(f.total) }]; // área fija: todo a esa área
-  }
-}
-
-function setModoAreaSII(i, modo) {
-  facturasSII[i].modoArea = modo;
-  document.getElementById(`btnModoMonto-${i}`).style.background = modo === 'monto' ? '#003a79' : 'white';
-  document.getElementById(`btnModoMonto-${i}`).style.color = modo === 'monto' ? 'white' : '#003a79';
-  document.getElementById(`btnModoPct-${i}`).style.background = modo === 'pct' ? '#003a79' : 'white';
-  document.getElementById(`btnModoPct-${i}`).style.color = modo === 'pct' ? 'white' : '#003a79';
-  document.querySelectorAll(`#areasFilasSII-${i} .inp-area-sii`).forEach(inp => {
-    inp.placeholder = modo === 'pct' ? '%' : '0';
-  });
-  recalcularAreasSII(i);
-}
-
-function agregarAreaSII(i, area = '', valor = '') {
-  const cont = document.getElementById(`areasFilasSII-${i}`);
-  const idx = cont.children.length;
-  const modo = facturasSII[i].modoArea || 'monto';
-  const div = document.createElement('div');
-  div.className = 'prorrateo-row';
-  div.style.marginBottom = '6px';
-  div.innerHTML = `
-    <select class="sel-area-sii" onchange="recalcularAreasSII(${i})">
-      <option value="">— Área —</option>
-      ${AREAS_OPCIONES.map(a => `<option value="${a}" ${a === area ? 'selected' : ''}>${a}</option>`).join('')}
-    </select>
-    <div style="display:flex;gap:4px;align-items:center;">
-      <input type="number" class="inp-area-sii" placeholder="${modo === 'pct' ? '%' : '0'}" min="0" value="${valor}" oninput="recalcularAreasSII(${i})" style="width:90px;text-align:right;"/>
-      ${idx > 0 ? `<button type="button" onclick="this.closest('.prorrateo-row').remove();recalcularAreasSII(${i});" style="background:none;border:none;color:#e74c3c;font-size:16px;cursor:pointer;padding:0 4px;">×</button>` : ''}
-    </div>`;
-  cont.appendChild(div);
-  recalcularAreasSII(i);
-}
-
-function recalcularAreasSII(i) {
-  const f = facturasSII[i];
-  const modo = f.modoArea || 'monto';
-  const totalFactura = Math.abs(f.total);
-  const areas = [];
-  document.querySelectorAll(`#areasFilasSII-${i} .prorrateo-row`).forEach(row => {
-    const area = row.querySelector('.sel-area-sii').value;
-    const valor = parseFloat(row.querySelector('.inp-area-sii').value) || 0;
-    if (area && valor > 0) areas.push({ area, valor });
-  });
-  f.areas = areas;
-
-  const hint = document.getElementById(`areasHintSII-${i}`);
-  const suma = areas.reduce((s,a) => s + a.valor, 0);
-  if (!areas.length) { hint.textContent = ''; return; }
-
-  if (modo === 'pct') {
-    const ok = Math.abs(suma - 100) < 0.01;
-    hint.textContent = ok ? `✓ 100% repartido` : `Suma: ${suma}% (debe ser 100%)`;
-    hint.style.color = ok ? '#155724' : '#c0392b';
-  } else {
-    const dif = totalFactura - suma;
-    const ok = Math.abs(dif) < 1;
-    hint.textContent = ok ? `✓ Cuadra con el total` : `Suma $${Math.round(suma).toLocaleString('es-CL')} — faltan $${Math.round(dif).toLocaleString('es-CL')}`;
-    hint.style.color = ok ? '#155724' : '#c0392b';
-  }
 }
 
 function setEstadoSII(i, estado, soloRefrescar) {
