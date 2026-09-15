@@ -1040,35 +1040,61 @@ function factorBrutoSII(f) {
   return sumaDetalle > 0 ? Math.abs(f.total) / sumaDetalle : 1;
 }
 
-function asignarLineaDetalle(i, di, item) {
-  const f = facturasSII[i];
-  f.detalle[di].item = item;
+function asignarLineaDetalle(i, di, campo, valor) {
+  facturasSII[i].detalle[di][campo] = valor;
   sincronizarLineasDesdeDetalle(i);
   renderLineasSII(i);
 }
 
-// Agrupa las líneas del detalle por ítem y arma las "lineas" de clasificación,
-// con el monto bruto que le corresponde a cada grupo.
+// Agrupa las líneas del detalle por ítem y arma las "lineas" de clasificación.
+// Si los productos traen área asignada, el reparto por área también se calcula solo:
+// cada producto aporta su monto al área que le corresponde.
 function sincronizarLineasDesdeDetalle(i) {
   const f = facturasSII[i];
   const factor = factorBrutoSII(f);
   const porItem = {};
+
   (f.detalle||[]).forEach(d => {
     if (!d.item) return;
-    if (!porItem[d.item]) porItem[d.item] = 0;
-    porItem[d.item] += Math.abs(d.monto) * factor;
+    if (!porItem[d.item]) porItem[d.item] = { monto: 0, areas: {} };
+    const montoBruto = Math.abs(d.monto) * factor;
+    porItem[d.item].monto += montoBruto;
+    if (d.area) porItem[d.item].areas[d.area] = (porItem[d.item].areas[d.area] || 0) + montoBruto;
   });
 
   const previas = f.lineas || [];
-  f.lineas = Object.keys(porItem).map(item => {
+  const items = Object.keys(porItem);
+  f.lineas = items.map(item => {
+    const g = porItem[item];
     const anterior = previas.find(l => l.item === item) || {};
+    const areasDesdeProductos = Object.keys(g.areas).map(a => ({ area: a, valor: Math.round(g.areas[a]) }));
+    // Los redondeos de cada área pueden dejar una diferencia de 1 o 2 pesos contra el
+    // monto del ítem: se absorbe en la última área para que siempre cuadre exacto.
+    if (areasDesdeProductos.length) {
+      const montoItem = Math.round(g.monto);
+      const sumaAreas = areasDesdeProductos.reduce((s,a) => s + a.valor, 0);
+      areasDesdeProductos[areasDesdeProductos.length-1].valor += (montoItem - sumaAreas);
+    }
     return {
       item,
-      monto: Math.round(porItem[item]),
-      areas: anterior.areas || [],
-      modoArea: anterior.modoArea || 'monto'
+      monto: Math.round(g.monto),
+      areas: areasDesdeProductos.length ? areasDesdeProductos : (anterior.areas || []),
+      areasAuto: areasDesdeProductos.length > 0,
+      modoArea: 'monto'
     };
   });
+
+  // Lo mismo entre ítems: el total repartido debe ser exactamente el de la factura
+  if (f.lineas.length) {
+    const totalFactura = Math.abs(f.total);
+    const sumaItems = f.lineas.reduce((s,l) => s + l.monto, 0);
+    const dif = totalFactura - sumaItems;
+    if (dif !== 0) {
+      const ultima = f.lineas[f.lineas.length-1];
+      ultima.monto += dif;
+      if (ultima.areasAuto && ultima.areas.length) ultima.areas[ultima.areas.length-1].valor += dif;
+    }
+  }
   if (!f.lineas.length) f.lineas = [{ item: '', areas: [], modoArea: 'monto' }];
 }
 
@@ -1079,28 +1105,44 @@ function renderDetalleAsignable(i) {
   const sinAsignar = f.detalle.filter(d => !d.item).length;
   return `<div style="margin-top:8px;background:#fafafa;border-radius:7px;padding:8px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-      <span style="font-size:11px;font-weight:700;color:#666;">Asignar productos a ítems</span>
-      ${sinAsignar ? `<span style="font-size:10px;color:#c0392b;">${sinAsignar} sin asignar</span>` : '<span style="font-size:10px;color:#155724;">✓ todos asignados</span>'}
+      <span style="font-size:11px;font-weight:700;color:#666;">Asignar productos</span>
+      ${sinAsignar ? `<span style="font-size:10px;color:#c0392b;">${sinAsignar} sin ítem</span>` : '<span style="font-size:10px;color:#155724;">✓ todos con ítem</span>'}
     </div>
-    ${f.detalle.map((d, di) => `<div style="display:flex;gap:6px;align-items:center;padding:4px 0;border-bottom:1px solid #f0f0f0;">
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:11px;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d.descripcion}</div>
-        <div style="font-size:10px;color:#aaa;">${d.cantidad ? `×${d.cantidad} · ` : ''}$${Math.round(Math.abs(d.monto)*factor).toLocaleString('es-CL')}</div>
-      </div>
-      <select onchange="asignarLineaDetalle(${i},${di},this.value)" style="width:135px;padding:5px;border:1px solid ${d.item ? '#155724' : '#ddd'};border-radius:6px;font-size:11px;">
-        <option value="">— ítem —</option>
-        ${ITEMS.map(it => `<option value="${it.item}" ${d.item === it.item ? 'selected' : ''}>${it.item}</option>`).join('')}
-      </select>
-    </div>`).join('')}
-    ${f.detalle.length > 1 ? `<button type="button" onclick="asignarTodoElDetalle(${i})" style="width:100%;padding:5px;margin-top:6px;background:transparent;border:1px dashed #003a79;border-radius:6px;color:#003a79;font-size:10px;font-weight:600;cursor:pointer;">Asignar todos al mismo ítem que el primero</button>` : ''}
+    ${f.detalle.map((d, di) => {
+      const itemData = ITEMS.find(it => it.item === d.item);
+      // El selector de área solo aparece si ese ítem realmente reparte por área
+      const pideArea = itemData && (itemData.area === 'SELECCIONAR' || itemData.area === 'PRORRATEADO');
+      return `<div style="padding:6px 0;border-bottom:1px solid #f0f0f0;">
+        <div style="display:flex;gap:6px;align-items:center;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:11px;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d.descripcion}</div>
+            <div style="font-size:10px;color:#aaa;">${d.cantidad ? `×${d.cantidad} · ` : ''}$${Math.round(Math.abs(d.monto)*factor).toLocaleString('es-CL')}</div>
+          </div>
+          <select onchange="asignarLineaDetalle(${i},${di},'item',this.value)" style="width:130px;padding:5px;border:1px solid ${d.item ? '#155724' : '#ddd'};border-radius:6px;font-size:11px;">
+            <option value="">— ítem —</option>
+            ${ITEMS.map(it => `<option value="${it.item}" ${d.item === it.item ? 'selected' : ''}>${it.item}</option>`).join('')}
+          </select>
+        </div>
+        ${pideArea ? `<div style="display:flex;justify-content:flex-end;margin-top:4px;">
+          <select onchange="asignarLineaDetalle(${i},${di},'area',this.value)" style="width:130px;padding:5px;border:1px solid ${d.area ? '#155724' : '#e0a800'};border-radius:6px;font-size:11px;">
+            <option value="">— área —</option>
+            ${AREAS_OPCIONES.map(a => `<option value="${a}" ${d.area === a ? 'selected' : ''}>${a}</option>`).join('')}
+          </select>
+        </div>` : ''}
+      </div>`;
+    }).join('')}
+    ${f.detalle.length > 1 ? `<div style="display:flex;gap:6px;margin-top:6px;">
+      <button type="button" onclick="asignarTodoElDetalle(${i},'item')" style="flex:1;padding:5px;background:transparent;border:1px dashed #003a79;border-radius:6px;color:#003a79;font-size:10px;font-weight:600;cursor:pointer;">Mismo ítem a todos</button>
+      <button type="button" onclick="asignarTodoElDetalle(${i},'area')" style="flex:1;padding:5px;background:transparent;border:1px dashed #003a79;border-radius:6px;color:#003a79;font-size:10px;font-weight:600;cursor:pointer;">Misma área a todos</button>
+    </div>` : ''}
   </div>`;
 }
 
-function asignarTodoElDetalle(i) {
+function asignarTodoElDetalle(i, campo) {
   const f = facturasSII[i];
-  const primero = f.detalle.find(d => d.item);
-  if (!primero) { alert('Asigna primero un ítem a algún producto'); return; }
-  f.detalle.forEach(d => { d.item = primero.item; });
+  const primero = f.detalle.find(d => d[campo]);
+  if (!primero) { alert(`Asigna primero ${campo === 'item' ? 'un ítem' : 'un área'} a algún producto`); return; }
+  f.detalle.forEach(d => { d[campo] = primero[campo]; });
   sincronizarLineasDesdeDetalle(i);
   renderLineasSII(i);
 }
@@ -1119,6 +1161,19 @@ function renderLineasSII(i) {
     const repartos = f.lineas.filter(ln => ln.item).map((ln, li) => {
       const itemData = ITEMS.find(it => it.item === ln.item);
       if (!itemData || (itemData.area !== 'SELECCIONAR' && itemData.area !== 'PRORRATEADO')) return '';
+
+      // Si las áreas salieron de los propios productos, no hay nada que escribir:
+      // se muestra el resultado ya calculado.
+      if (ln.areasAuto) {
+        return `<div style="border:1px solid #d4edda;border-radius:8px;padding:8px;margin-top:8px;background:#f8fff9;">
+          <div style="font-size:11px;font-weight:700;color:#155724;margin-bottom:4px;">${ln.item} · $${Math.round(ln.monto||0).toLocaleString('es-CL')}</div>
+          ${ln.areas.map(a => `<div style="display:flex;justify-content:space-between;font-size:11px;color:#333;padding:1px 0;">
+            <span>${a.area}</span><span style="font-weight:600;">$${Math.round(a.valor).toLocaleString('es-CL')}</span>
+          </div>`).join('')}
+          <div style="font-size:10px;color:#155724;margin-top:4px;">✓ calculado desde los productos</div>
+        </div>`;
+      }
+
       const modo = ln.modoArea || 'monto';
       return `<div style="border:1px solid #eee;border-radius:8px;padding:8px;margin-top:8px;background:#fcfcfc;">
         <div style="font-size:11px;font-weight:700;color:#003a79;margin-bottom:6px;">${ln.item} · $${Math.round(ln.monto||0).toLocaleString('es-CL')}</div>
@@ -1139,6 +1194,7 @@ function renderLineasSII(i) {
 
     cont.innerHTML = asignables + repartos;
     f.lineas.forEach((ln, li) => {
+      if (ln.areasAuto) return; // ya está resuelto desde los productos
       const itemData = ITEMS.find(it => it.item === ln.item);
       if (itemData && (itemData.area === 'SELECCIONAR' || itemData.area === 'PRORRATEADO')) {
         if (!ln.areas || !ln.areas.length) agregarAreaLinea(i, li);
@@ -1379,6 +1435,12 @@ function prepararFacturasParaImportar() {
     if (f.detalle && f.detalle.length) {
       const sinAsignar = f.detalle.filter(d => !d.item).length;
       if (sinAsignar) { problemas.push(`${etiqueta}: ${sinAsignar} producto(s) sin asignar a un ítem`); return; }
+      // Si el ítem reparte por área, cada producto debe decir a qué área va
+      const sinArea = f.detalle.filter(d => {
+        const it = ITEMS.find(x => x.item === d.item);
+        return it && (it.area === 'SELECCIONAR' || it.area === 'PRORRATEADO') && !d.area;
+      }).length;
+      if (sinArea) { problemas.push(`${etiqueta}: ${sinArea} producto(s) sin área asignada`); return; }
     } else if (lineasValidas.length > 1) {
       // Sin detalle, los montos los escribe el usuario y deben cuadrar con el total
       const sumaLineas = lineasValidas.reduce((s,ln) => s + (parseFloat(ln.monto)||0), 0);
@@ -1425,7 +1487,7 @@ function prepararFacturasParaImportar() {
       estado: f.estado, fechaEstado: f.fechaEstado, lineas: lineasFinal,
       detalle: (f.detalle || []).map(d => ({
         descripcion: d.descripcion, codigo: d.codigo, cantidad: d.cantidad,
-        precioUnitario: d.precioUnitario, monto: d.monto * signo, item: d.item || ''
+        precioUnitario: d.precioUnitario, monto: d.monto * signo, item: d.item || '', area: d.area || ''
       }))
     });
   });
