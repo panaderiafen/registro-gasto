@@ -819,6 +819,28 @@ function renderCargaSII() {
   });
 }
 
+// Acumulador para la carga SII: a diferencia del de Registrar (que apunta a un input por
+// id), acá el valor vive en el array de datos, así que suma sobre el input y dispara el
+// recálculo correspondiente.
+function acumuladorSIIHtml(inputId) {
+  return `<div style="display:flex;gap:4px;margin-top:4px;">
+    <input type="number" id="${inputId}-tmp" placeholder="Sumar..." style="flex:1;min-width:0;padding:5px 7px;border:1px solid #e0e0e0;border-radius:6px;font-size:11px;" onkeydown="if(event.key==='Enter'){event.preventDefault();sumarEnSII('${inputId}');}"/>
+    <button type="button" onclick="sumarEnSII('${inputId}')" style="padding:5px 9px;background:#e8f0fe;color:#003a79;border:1px solid #003a79;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">+</button>
+  </div>`;
+}
+
+function sumarEnSII(inputId) {
+  const principal = document.getElementById(inputId);
+  const temp = document.getElementById(inputId + '-tmp');
+  if (!principal || !temp) return;
+  const nuevo = parseFloat(temp.value) || 0;
+  if (!nuevo) { temp.focus(); return; }
+  principal.value = (parseFloat(principal.value) || 0) + nuevo;
+  temp.value = '';
+  temp.focus();
+  principal.dispatchEvent(new Event('input', { bubbles: true })); // dispara el recálculo ya existente
+}
+
 function renderTarjetaSII(f, i) {
   const montoColor = f.esNotaCredito ? '#c0392b' : '#003a79';
   const etiquetas = [];
@@ -886,9 +908,12 @@ function renderLineasSII(i) {
         <option value="">— Clasificar ítem de gasto —</option>
         ${ITEMS.map(it => `<option value="${it.item}" ${ln.item === it.item ? 'selected' : ''}>${it.item}</option>`).join('')}
       </select>
-      ${varias ? `<div style="display:flex;gap:4px;align-items:center;margin-bottom:8px;">
-        <span style="font-size:12px;color:#555;">Monto de este ítem: $</span>
-        <input type="number" value="${ln.monto||''}" oninput="onMontoLineaChange(${i},${li},this.value)" placeholder="0" min="0" style="flex:1;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:13px;text-align:right;"/>
+      ${varias ? `<div style="margin-bottom:8px;">
+        <div style="display:flex;gap:4px;align-items:center;">
+          <span style="font-size:12px;color:#555;">Monto de este ítem: $</span>
+          <input type="number" id="montoLinea-${i}-${li}" value="${ln.monto||''}" oninput="onMontoLineaChange(${i},${li},this.value)" placeholder="0" min="0" style="flex:1;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:13px;text-align:right;"/>
+        </div>
+        ${acumuladorSIIHtml(`montoLinea-${i}-${li}`)}
       </div>` : ''}
       ${necesitaAreas ? `<div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
@@ -918,15 +943,19 @@ function renderLineasSII(i) {
 }
 
 function filaAreaHTML(i, li, ai, area, valor, modo) {
-  return `<div class="prorrateo-row" style="margin-bottom:6px;">
-    <select onchange="onAreaLineaChange(${i},${li},${ai},'area',this.value)">
-      <option value="">— Área —</option>
-      ${AREAS_OPCIONES.map(a => `<option value="${a}" ${a === area ? 'selected' : ''}>${a}</option>`).join('')}
-    </select>
-    <div style="display:flex;gap:4px;align-items:center;">
-      <input type="number" placeholder="${modo === 'pct' ? '%' : '0'}" min="0" value="${valor||''}" oninput="onAreaLineaChange(${i},${li},${ai},'valor',this.value)" style="width:90px;text-align:right;"/>
-      ${ai > 0 ? `<button type="button" onclick="quitarAreaLinea(${i},${li},${ai})" style="background:none;border:none;color:#e74c3c;font-size:16px;cursor:pointer;padding:0 4px;">×</button>` : ''}
+  const inputId = `areaVal-${i}-${li}-${ai}`;
+  return `<div style="margin-bottom:8px;">
+    <div class="prorrateo-row" style="margin-bottom:0;">
+      <select onchange="onAreaLineaChange(${i},${li},${ai},'area',this.value)">
+        <option value="">— Área —</option>
+        ${AREAS_OPCIONES.map(a => `<option value="${a}" ${a === area ? 'selected' : ''}>${a}</option>`).join('')}
+      </select>
+      <div style="display:flex;gap:4px;align-items:center;">
+        <input type="number" id="${inputId}" placeholder="${modo === 'pct' ? '%' : '0'}" min="0" value="${valor||''}" oninput="onAreaLineaChange(${i},${li},${ai},'valor',this.value)" style="width:90px;text-align:right;"/>
+        ${ai > 0 ? `<button type="button" onclick="quitarAreaLinea(${i},${li},${ai})" style="background:none;border:none;color:#e74c3c;font-size:16px;cursor:pointer;padding:0 4px;">×</button>` : ''}
+      </div>
     </div>
+    ${modo !== 'pct' ? acumuladorSIIHtml(inputId) : ''}
   </div>`;
 }
 
