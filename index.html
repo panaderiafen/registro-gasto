@@ -412,6 +412,10 @@
     <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:8px;">📚 Historial de cargas</div>
     <div id="historialCargas"><div style="font-size:12px;color:#aaa;text-align:center;padding:8px;">Cargando...</div></div>
   </div>
+  <div id="buscadorCargaWrap" class="hidden" style="margin-bottom:10px;">
+    <input type="text" id="buscarCarga" placeholder="🔍 Buscar por folio, proveedor o RUT..." oninput="renderCargaSII()" style="width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;"/>
+    <div id="buscarCargaHint" style="font-size:11px;color:#888;margin-top:4px;"></div>
+  </div>
   <div id="cargaLista"></div>
 </div>
 </div>
@@ -1115,6 +1119,7 @@ function renderCargaSII() {
   if (!facturasSII.length) {
     resumen.innerHTML = '<div style="color:#c0392b;font-size:13px;">No se encontraron documentos en el archivo.</div>';
     lista.innerHTML = '';
+    document.getElementById('buscadorCargaWrap').classList.add('hidden');
     return;
   }
 
@@ -1149,8 +1154,29 @@ function renderCargaSII() {
     <button type="button" id="btnImportarSII" onclick="importarFacturasSII()" style="width:100%;padding:12px;margin-top:12px;background:#003a79;color:white;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">📥 Importar las clasificadas</button>
     <div id="importHint" style="font-size:12px;color:#888;margin-top:6px;text-align:center;"></div>` : ''}`;
 
-  lista.innerHTML = facturasSII.map((f, i) => renderTarjetaSII(f, i)).join('');
-  facturasSII.forEach((f, i) => {
+  // Buscador: filtra qué tarjetas se muestran, sin alterar los datos ni la clasificación
+  document.getElementById('buscadorCargaWrap').classList.remove('hidden');
+  const busqueda = (document.getElementById('buscarCarga')?.value || '').trim().toLowerCase();
+  const hintBuscar = document.getElementById('buscarCargaHint');
+  const visibles = busqueda
+    ? facturasSII.map((f,i) => ({f,i})).filter(({f}) =>
+        f.folio.toLowerCase().includes(busqueda) ||
+        f.razonSocial.toLowerCase().includes(busqueda) ||
+        f.rut.toLowerCase().includes(busqueda))
+    : facturasSII.map((f,i) => ({f,i}));
+
+  if (busqueda) {
+    const importadas = visibles.filter(({f}) => f.yaImportada).length;
+    hintBuscar.textContent = visibles.length
+      ? `${visibles.length} resultado(s) · ${importadas} ya importado(s) · ${visibles.length-importadas} por importar`
+      : `Sin resultados para "${busqueda}"`;
+    hintBuscar.style.color = visibles.length ? '#555' : '#c0392b';
+  } else {
+    hintBuscar.textContent = '';
+  }
+
+  lista.innerHTML = visibles.map(({f,i}) => renderTarjetaSII(f, i)).join('');
+  visibles.forEach(({f,i}) => {
     if (f.yaImportada) return;
     if (!f.lineas || !f.lineas.length) f.lineas = [{ item: '', areas: [], modoArea: 'monto' }];
     renderLineasSII(i);
