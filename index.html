@@ -409,8 +409,11 @@
     <div id="cargaResumen" style="margin-top:12px;"></div>
   </div>
   <div class="card">
-    <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:8px;">📚 Historial de cargas</div>
-    <div id="historialCargas"><div style="font-size:12px;color:#aaa;text-align:center;padding:8px;">Cargando...</div></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleHistorialCargas()">
+      <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;">📚 Historial de cargas <span id="historialCargasBadge" style="font-weight:400;color:#888;text-transform:none;"></span></div>
+      <span id="historialCargasIcon" style="font-size:13px;color:#003a79;font-weight:600;">Ver ▾</span>
+    </div>
+    <div id="historialCargas" class="hidden" style="margin-top:10px;"></div>
   </div>
   <div id="buscadorCargaWrap" class="hidden" style="margin-bottom:10px;">
     <input type="text" id="buscarCarga" placeholder="🔍 Buscar por folio, proveedor o RUT..." oninput="renderCargaSII()" style="width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;"/>
@@ -828,6 +831,14 @@ function fechaDDMMYYYYaISO(str) {
   return m ? `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}` : '';
 }
 
+function toggleHistorialCargas() {
+  const panel = document.getElementById('historialCargas');
+  const icon = document.getElementById('historialCargasIcon');
+  const vaAAbrir = panel.classList.contains('hidden');
+  panel.classList.toggle('hidden');
+  icon.textContent = vaAAbrir ? 'Ocultar ▴' : 'Ver ▾';
+}
+
 async function cargarHistorialCargas() {
   const cont = document.getElementById('historialCargas');
   if (!cont) return;
@@ -835,6 +846,14 @@ async function cargarHistorialCargas() {
     const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getCargasSII' }) });
     const d = await r.json();
     const cargas = d.cargas || [];
+
+    // Resumen en el encabezado: se ve sin necesidad de desplegar el panel
+    const badge = document.getElementById('historialCargasBadge');
+    const incompletas = cargas.filter(c => c.total > c.importados).length;
+    if (badge) badge.textContent = cargas.length
+      ? (incompletas ? `· ${incompletas} con pendientes` : '· todas completas')
+      : '';
+
     if (!cargas.length) { cont.innerHTML = '<div style="font-size:12px;color:#aaa;text-align:center;padding:8px;">Aún no hay cargas registradas.</div>'; return; }
 
     cont.innerHTML = cargas.map(c => {
