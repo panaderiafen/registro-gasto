@@ -1549,7 +1549,7 @@ function prepararFacturasParaImportar() {
   return { listas, problemas };
 }
 
-async function importarFacturasSII() {
+async function importarFacturasSII(omitirRepetidas) {
   const { listas, problemas } = prepararFacturasParaImportar();
   const hint = document.getElementById('importHint');
 
@@ -1559,15 +1559,32 @@ async function importarFacturasSII() {
   }
   if (!listas.length) { hint.innerHTML = '<span style="color:#c0392b;">No hay facturas clasificadas para importar</span>'; return; }
 
-  if (!confirm(`¿Importar ${listas.length} factura(s) al registro de gastos?`)) return;
+  if (!omitirRepetidas && !confirm(`¿Importar ${listas.length} factura(s) al registro de gastos?`)) return;
 
   const btn = document.getElementById('btnImportarSII');
   btn.disabled = true; btn.textContent = '⏳ Importando...';
   hint.textContent = '';
 
   try {
-    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'importarSII', facturas: listas }) });
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'importarSII', facturas: listas, omitirRepetidas: !!omitirRepetidas }) });
     const d = await r.json();
+
+    // El backend encontró documentos ya importados y no guardó nada: decide el usuario
+    if (d.duplicados) {
+      btn.disabled = false; btn.textContent = '📥 Importar las clasificadas';
+      hint.innerHTML = `<div style="text-align:left;color:#856404;background:#fff8e1;padding:10px;border-radius:8px;border:1px solid #e0a800;">
+        <strong>⚠️ No se guardó nada todavía.</strong><br>
+        ${d.duplicados.length} documento(s) ya estaban importados:<br>
+        ${d.duplicados.slice(0,5).map(x => `• ${x.razonSocial} F.${x.folio}`).join('<br>')}
+        ${d.duplicados.length > 5 ? `<br>• ...y ${d.duplicados.length-5} más` : ''}
+        <div style="display:flex;gap:6px;margin-top:10px;">
+          ${d.nuevas > 0 ? `<button onclick="importarFacturasSII(true)" style="flex:1;padding:7px;background:#155724;color:white;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;">Importar solo las ${d.nuevas} nuevas</button>` : ''}
+          <button onclick="document.getElementById('importHint').innerHTML=''" style="flex:1;padding:7px;background:white;color:#666;border:1px solid #ddd;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;">Cancelar</button>
+        </div>
+      </div>`;
+      return;
+    }
+
     if (d.ok) {
       showToast(`✅ ${d.filas} registro(s) importados`);
       hint.innerHTML = `<span style="color:#155724;">✓ Importado: ${d.filas} línea(s) de gasto${d.vencimientos ? ` · ${d.vencimientos} obligación(es)` : ''}${d.detalle ? ` · ${d.detalle} producto(s) en Detalle Compras` : ''}</span>`;
