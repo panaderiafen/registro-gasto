@@ -408,6 +408,10 @@
     <input type="file" id="archivoSII" accept=".csv,.xls,.xlsx" onchange="leerArchivoSII(this)" style="width:100%;padding:10px;border:1.5px dashed #003a79;border-radius:8px;font-size:13px;background:#f8faff;"/>
     <div id="cargaResumen" style="margin-top:12px;"></div>
   </div>
+  <div class="card">
+    <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:8px;">📚 Historial de cargas</div>
+    <div id="historialCargas"><div style="font-size:12px;color:#aaa;text-align:center;padding:8px;">Cargando...</div></div>
+  </div>
   <div id="cargaLista"></div>
 </div>
 </div>
@@ -722,6 +726,7 @@ function showSection(id, tab) {
   if (id === 'obligaciones') cargarObligaciones();
   if (id === 'analisis') cargarAnalisis();
   if (id === 'items') renderItems();
+  if (id === 'carga') cargarHistorialCargas();
 }
 
 // ─── CARGA MASIVA SII ─────────────────────────
@@ -813,6 +818,43 @@ function fechaISOaDDMMYYYY_SII(str) {
   return String(str||'');
 }
 
+// dd/mm/yyyy -> yyyy-mm-dd (para ordenar y deducir el período de la carga)
+function fechaDDMMYYYYaISO(str) {
+  const m = String(str||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  return m ? `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}` : '';
+}
+
+async function cargarHistorialCargas() {
+  const cont = document.getElementById('historialCargas');
+  if (!cont) return;
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getCargasSII' }) });
+    const d = await r.json();
+    const cargas = d.cargas || [];
+    if (!cargas.length) { cont.innerHTML = '<div style="font-size:12px;color:#aaa;text-align:center;padding:8px;">Aún no hay cargas registradas.</div>'; return; }
+
+    cont.innerHTML = cargas.map(c => {
+      const faltan = c.total - c.importados;
+      const completa = faltan === 0;
+      const periodo = (c.desde && c.hasta)
+        ? (c.desde === c.hasta ? fmtFecha(c.desde) : `${fmtFecha(c.desde)} al ${fmtFecha(c.hasta)}`)
+        : 'Sin fecha';
+      return `<div style="border:1px solid ${completa ? '#d4edda' : '#ffe0b2'};background:${completa ? '#f8fff9' : '#fffdf7'};border-radius:8px;padding:10px;margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+          <span style="font-size:13px;font-weight:700;color:#333;">${periodo}</span>
+          <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:${completa ? '#d4edda' : '#ffe0b2'};color:${completa ? '#155724' : '#856404'};white-space:nowrap;">
+            ${completa ? '✓ COMPLETA' : `FALTAN ${faltan}`}
+          </span>
+        </div>
+        <div style="font-size:11px;color:#666;margin-top:4px;">${c.total} documento(s) · ${c.importados} importado(s)</div>
+        ${c.url ? `<a href="${c.url}" target="_blank" style="font-size:11px;color:#003a79;text-decoration:none;display:inline-block;margin-top:4px;">📎 Ver archivo original ↗</a>` : ''}
+      </div>`;
+    }).join('');
+  } catch(e) {
+    cont.innerHTML = '<div style="font-size:12px;color:#aaa;text-align:center;padding:8px;">No se pudo cargar el historial.</div>';
+  }
+}
+
 function parseCSVSII(texto) {
   // El archivo del SII usa ';' como separador y trae encabezados en la primera línea.
   const lineas = texto.split(/\r?\n/).filter(l => l.trim());
@@ -882,6 +924,20 @@ function leerArchivoSII(input) {
         facturasSII.forEach(f => { f.yaImportada = yaImportados.has(f.rut + '|' + f.folio); });
       } catch(err) { /* si falla, se muestran todas como pendientes */ }
       renderCargaSII();
+
+      // Registrar la carga: guarda el archivo en Drive y deja constancia del período,
+      // para poder seguir después cuántos documentos de esa semana quedaron pendientes.
+      try {
+        const base64 = btoa(unescape(encodeURIComponent(contenido)));
+        await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({
+          action: 'registrarCargaSII',
+          nombreArchivo: file.name,
+          mimeType: file.type || 'text/plain',
+          archivoBase64: base64,
+          documentos: facturasSII.map(f => ({ rut: f.rut, folio: f.folio, fecha: fechaDDMMYYYYaISO(f.fecha) }))
+        })});
+        cargarHistorialCargas();
+      } catch(err) { /* el historial es complementario: si falla, la carga sigue siendo usable */ }
     } catch(err) {
       document.getElementById('cargaResumen').innerHTML = `<div style="color:#c0392b;font-size:13px;">Error al leer el archivo: ${err.message}</div>`;
     }
@@ -1595,6 +1651,7 @@ async function importarFacturasSII(omitirRepetidas) {
       });
       renderCargaSII();
       cargarUltimosRegistros();
+      cargarHistorialCargas();
     } else {
       btn.disabled = false; btn.textContent = '📥 Importar las clasificadas';
       hint.innerHTML = `<span style="color:#c0392b;">Error: ${d.error || 'no se pudo importar'}</span>`;
