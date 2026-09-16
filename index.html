@@ -847,11 +847,174 @@ async function cargarHistorialCargas() {
           </span>
         </div>
         <div style="font-size:11px;color:#666;margin-top:4px;">${c.total} documento(s) · ${c.importados} importado(s)</div>
-        ${c.url ? `<a href="${c.url}" target="_blank" style="font-size:11px;color:#003a79;text-decoration:none;display:inline-block;margin-top:4px;">📎 Ver archivo original ↗</a>` : ''}
+        ${!completa && c.pendientes.length ? `<div style="margin-top:6px;padding:6px 8px;background:#fff;border-radius:6px;border:1px solid #f0e0c0;">
+          <div style="font-size:10px;font-weight:700;color:#856404;margin-bottom:3px;">Pendientes:</div>
+          ${c.pendientes.slice(0,6).map(p => `<div style="font-size:11px;color:#555;">• ${p.razonSocial || 'Documento'} F.${p.folio}</div>`).join('')}
+          ${c.pendientes.length > 6 ? `<div style="font-size:11px;color:#888;">• ...y ${c.pendientes.length-6} más</div>` : ''}
+        </div>` : ''}
+        <div style="display:flex;gap:6px;margin-top:8px;">
+          ${!completa && c.url ? `<button onclick="reabrirCarga('${c.id}')" style="flex:1;padding:6px;background:#003a79;color:white;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;">↻ Reabrir carga</button>` : ''}
+          ${c.url ? `<a href="${c.url}" target="_blank" style="flex:1;padding:6px;background:white;border:1px solid #ddd;border-radius:7px;font-size:11px;font-weight:600;color:#666;text-decoration:none;text-align:center;">📎 Archivo ↗</a>` : ''}
+        </div>
       </div>`;
     }).join('');
   } catch(e) {
     cont.innerHTML = '<div style="font-size:12px;color:#aaa;text-align:center;padding:8px;">No se pudo cargar el historial.</div>';
+  }
+}
+
+// Procesa el contenido de un archivo del SII (venga del computador o de Drive)
+async function procesarContenidoSII(contenido) {
+  // El "xls" del SII es en realidad HTML — se detecta por su contenido, no por la extensión
+  const esDetalle = /<t[rd]\b/i.test(contenido.slice(0, 2000));
+  facturasSII = esDetalle ? parseXLSDetalleSII(contenido) : parseCSVSII(contenido);
+  formatoSII = esDetalle ? 'detalle' : 'registro';
+
+  if (!facturasSII.length) {
+    document.getElementById('cargaResumen').innerHTML = '<div style="color:#c0392b;font-size:13px;">No se reconocieron documentos en el archivo. Revisa que sea el Registro de Compras (.csv) o Documentos recibidos (.xls) del SII.</div>';
+    document.getElementById('cargaLista').innerHTML = '';
+    return false;
+  }
+
+  document.getElementById('cargaResumen').innerHTML = '<div style="font-size:13px;color:#888;">Revisando documentos ya importados...</div>';
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getFoliosImportados' }) });
+    const d = await r.json();
+    const yaImportados = new Set(d.folios || []);
+    facturasSII.forEach(f => { f.yaImportada = yaImportados.has(f.rut + '|' + f.folio); });
+  } catch(err) { /* si falla, se muestran todas como pendientes */ }
+  renderCargaSII();
+  return true;
+}
+
+// Vuelve a abrir una carga anterior trayendo su archivo desde Drive: deja la lista
+// igual que el día que se subió, con las ya importadas en gris.
+async function reabrirCarga(id) {
+  const cont = document.getElementById('cargaResumen');
+  cont.innerHTML = '<div style="font-size:13px;color:#888;">⏳ Trayendo el archivo desde Drive...</div>';
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'leerArchivoCarga', id }) });
+    const d = await r.json();
+    if (!d.ok) { cont.innerHTML = `<div style="color:#c0392b;font-size:13px;">${d.error || 'No se pudo abrir el archivo'}</div>`; return; }
+    await procesarContenidoSII(d.contenido);
+    showToast('✅ Carga reabierta');
+    document.getElementById('cargaLista')?.scrollIntoView({ behavior:'smooth', block:'start' });
+  } catch(e) {
+    cont.innerHTML = '<div style="color:#c0392b;font-size:13px;">Error de conexión al abrir el archivo</div>';
+  }
+}
+
+function parseCSVSII(texto) {
+  // El archivo del SII usa ';' como separador y trae encabezados en la primera línea.
+  const lineas = texto.split(/\r?\n/).filter(l => l.trim());
+  if (!lineas.length) return [];
+  const headers = lineas[0].split(';').map(h => h.trim());
+
+  const idx = (nombre) => headers.findIndex(h =>
+    h.toLowerCase().replace(/[^a-z]/g,'') === nombre.toLowerCase().replace(/[^a-z]/g,''));
+
+  const iTipo = idx('Tipo Doc'), iRut = idx('RUT Proveedor'), iRazon = idx('Razon Social'),
+        iFolio = idx('Folio'), iFecha = idx('Fecha Docto'), iExento = idx('Monto Exento'),
+        iNeto = idx('Monto Neto'), iIva = idx('Monto IVA Recuperable'), iTotal = idx('Monto Total'),
+        iOtroValor = idx('Valor Otro Impuesto'), iOtraTasa = idx('Tasa Otro Impuesto');
+
+  const num = (v) => { const n = parseFloat(String(v||'').replace(/\./g,'').replace(',','.')); return isNaN(n) ? 0 : n; };
+
+  return lineas.slice(1).map((linea, i) => {
+    const c = linea.split(';');
+    const tipoDoc = String(c[iTipo]||'').trim();
+    const esNotaCredito = tipoDoc === '61';
+    const signo = esNotaCredito ? -1 : 1; // las notas de crédito restan
+    const tasaOtro = num(c[iOtraTasa]);
+    return {
+      idx: i,
+      tipoDoc,
+      tipoLabel: TIPO_DOC_LABEL[tipoDoc] || ('Doc ' + tipoDoc),
+      esNotaCredito,
+      rut: String(c[iRut]||'').trim(),
+      razonSocial: String(c[iRazon]||'').trim(),
+      folio: String(c[iFolio]||'').trim(),
+      fecha: String(c[iFecha]||'').trim(), // dd/mm/yyyy
+      exento: num(c[iExento]) * signo,
+      neto: num(c[iNeto]) * signo,
+      iva: num(c[iIva]) * signo,
+      total: num(c[iTotal]) * signo,
+      otroImpuesto: num(c[iOtroValor]) * signo,
+      tasaOtroImpuesto: tasaOtro,
+      // El impuesto adicional a la harina es tasa 12 — se detecta solo, sin marcarlo a mano.
+      esHarina: tasaOtro === 12
+    };
+  }).filter(f => f.rut && f.folio);
+}
+
+function leerArchivoSII(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const contenido = e.target.result;
+      const ok = await procesarContenidoSII(contenido);
+      if (!ok) return;
+
+      // Registrar la carga: guarda el archivo en Drive y deja constancia del período,
+      // para poder seguir después cuántos documentos de esa semana quedaron pendientes.
+      try {
+        const base64 = btoa(unescape(encodeURIComponent(contenido)));
+        await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({
+          action: 'registrarCargaSII',
+          nombreArchivo: file.name,
+          mimeType: file.type || 'text/plain',
+          archivoBase64: base64,
+          documentos: facturasSII.map(f => ({ rut: f.rut, folio: f.folio, fecha: fechaDDMMYYYYaISO(f.fecha), razonSocial: f.razonSocial }))
+        })});
+        cargarHistorialCargas();
+      } catch(err) { /* el historial es complementario: si falla, la carga sigue siendo usable */ }
+    } catch(err) {
+      document.getElementById('cargaResumen').innerHTML = `<div style="color:#c0392b;font-size:13px;">Error al leer el archivo: ${err.message}</div>`;
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+// Procesa el contenido de un archivo del SII (venga del computador o de Drive)
+async function procesarContenidoSII(contenido) {
+  // El "xls" del SII es en realidad HTML — se detecta por su contenido, no por la extensión
+  const esDetalle = /<t[rd]\b/i.test(contenido.slice(0, 2000));
+  facturasSII = esDetalle ? parseXLSDetalleSII(contenido) : parseCSVSII(contenido);
+  formatoSII = esDetalle ? 'detalle' : 'registro';
+
+  if (!facturasSII.length) {
+    document.getElementById('cargaResumen').innerHTML = '<div style="color:#c0392b;font-size:13px;">No se reconocieron documentos en el archivo. Revisa que sea el Registro de Compras (.csv) o Documentos recibidos (.xls) del SII.</div>';
+    document.getElementById('cargaLista').innerHTML = '';
+    return false;
+  }
+
+  document.getElementById('cargaResumen').innerHTML = '<div style="font-size:13px;color:#888;">Revisando documentos ya importados...</div>';
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getFoliosImportados' }) });
+    const d = await r.json();
+    const yaImportados = new Set(d.folios || []);
+    facturasSII.forEach(f => { f.yaImportada = yaImportados.has(f.rut + '|' + f.folio); });
+  } catch(err) { /* si falla, se muestran todas como pendientes */ }
+  renderCargaSII();
+  return true;
+}
+
+// Vuelve a abrir una carga anterior trayendo su archivo desde Drive: deja la lista
+// igual que el día que se subió, con las ya importadas en gris.
+async function reabrirCarga(id) {
+  const cont = document.getElementById('cargaResumen');
+  cont.innerHTML = '<div style="font-size:13px;color:#888;">⏳ Trayendo el archivo desde Drive...</div>';
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'leerArchivoCarga', id }) });
+    const d = await r.json();
+    if (!d.ok) { cont.innerHTML = `<div style="color:#c0392b;font-size:13px;">${d.error || 'No se pudo abrir el archivo'}</div>`; return; }
+    await procesarContenidoSII(d.contenido);
+    showToast('✅ Carga reabierta');
+    document.getElementById('cargaLista')?.scrollIntoView({ behavior:'smooth', block:'start' });
+  } catch(e) {
+    cont.innerHTML = '<div style="color:#c0392b;font-size:13px;">Error de conexión al abrir el archivo</div>';
   }
 }
 
@@ -934,7 +1097,7 @@ function leerArchivoSII(input) {
           nombreArchivo: file.name,
           mimeType: file.type || 'text/plain',
           archivoBase64: base64,
-          documentos: facturasSII.map(f => ({ rut: f.rut, folio: f.folio, fecha: fechaDDMMYYYYaISO(f.fecha) }))
+          documentos: facturasSII.map(f => ({ rut: f.rut, folio: f.folio, fecha: fechaDDMMYYYYaISO(f.fecha), razonSocial: f.razonSocial }))
         })});
         cargarHistorialCargas();
       } catch(err) { /* el historial es complementario: si falla, la carga sigue siendo usable */ }
