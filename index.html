@@ -1197,6 +1197,20 @@ function renderTarjetaSII(f, i) {
       Neto $${Math.round(f.neto).toLocaleString('es-CL')} · IVA $${Math.round(f.iva).toLocaleString('es-CL')}${f.otroImpuesto ? ` · Otro imp. $${Math.round(f.otroImpuesto).toLocaleString('es-CL')} (${f.tasaOtroImpuesto}%)` : ''}
     </div>
     ${etiquetas.length ? `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">${etiquetas.join('')}</div>` : ''}
+    ${(f.coincidencias && f.coincidencias.length) ? `<div style="margin-top:8px;background:#fffdf7;border:1px solid #e0a800;border-radius:8px;padding:10px;">
+      <div style="font-size:11px;font-weight:700;color:#856404;margin-bottom:6px;">⚠️ Posible coincidencia con un gasto ya registrado</div>
+      ${f.coincidencias.map((c, ci) => `<div style="background:white;border-radius:6px;padding:8px;margin-bottom:6px;border:1px solid #f0e0c0;">
+        <div style="font-size:12px;font-weight:600;color:#333;">${c.items.filter(Boolean).join(' + ') || 'Sin ítem'}</div>
+        <div style="font-size:11px;color:#666;margin-top:2px;">
+          ${fmtFecha(c.fecha)}${c.diasDif ? ` <span style="color:#aaa;">(${c.diasDif} día${c.diasDif>1?'s':''} de diferencia)</span>` : ' <span style="color:#155724;">(misma fecha)</span>'}
+          · $${c.total.toLocaleString('es-CL')}${c.formaPago ? ` · ${c.formaPago}` : ''}
+        </div>
+        ${c.areas.length ? `<div style="font-size:11px;color:#666;margin-top:3px;">${c.areas.map(a => `${a.area}: $${a.monto.toLocaleString('es-CL')}`).join(' · ')}</div>` : ''}
+        ${c.obs ? `<div style="font-size:10px;color:#999;margin-top:3px;">${c.obs}</div>` : ''}
+        <button type="button" onclick="confirmarCoincidencia(${i},${ci})" style="width:100%;padding:6px;margin-top:6px;background:#155724;color:white;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;">✓ Sí, este gasto ya está ingresado</button>
+      </div>`).join('')}
+      <button type="button" onclick="descartarCoincidencias(${i})" style="width:100%;padding:6px;background:white;border:1px solid #ddd;border-radius:6px;font-size:11px;font-weight:600;color:#666;cursor:pointer;">No, es una compra distinta</button>
+    </div>` : ''}
 
     <div style="margin-top:10px;padding-top:10px;border-top:1px solid #f0f0f0;">
       <div id="lineasSII-${i}"></div>
