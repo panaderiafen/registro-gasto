@@ -934,7 +934,7 @@
 </div>
 
 <script>
-const BACKEND_URL = "https://script.google.com/macros/s/AKfycbzXVbOKTtYMYBdtY5LC9X7vsQrNdoyuwB5irOSmOOJYEiaQb1gP2YsbR3Y3BFIOswmQ/exec";
+const BACKEND_URL = "https://script.google.com/macros/s/AKfycbwtsBzi4KYvoqkTnp3EriIl3UkNNdVX-T3_2391ePHUpsyepfwQmHFpYaLSV04ihxJb/exec";
 
 // ─── NAVEGACIÓN ───────────────────────────────
 function showSection(id, tab) {
@@ -958,6 +958,16 @@ const TIPO_DOC_LABEL = { '33': 'Factura', '34': 'Factura exenta', '39': 'Boleta'
 // no hay forma de recuperarlas: se limpian para que al menos se vean prolijos.
 function limpiarTextoSII(t) {
   return String(t||'').replace(/\?/g, '').replace(/\s+/g, ' ').trim();
+}
+
+// Las cantidades vienen del SII con punto decimal (1.146 = un kilo con 146 gramos),
+// pero en Chile el punto es separador de miles: mostrarlo tal cual hace leer "1.146
+// unidades". Se formatea con coma y, cuando el documento la trae, con su unidad.
+function fmtCantidad(valor, unidad) {
+  const v = parseFloat(valor) || 0;
+  if (!v) return '';
+  const txt = v.toLocaleString('es-CL', { maximumFractionDigits: 3 });
+  return unidad ? `${txt} ${unidad}` : txt;
 }
 
 // Impuestos adicionales que aparecen en las compras. El código viene en el XML
@@ -1054,8 +1064,14 @@ function parseXLSDetalleSII(texto) {
       actual.detalle.push({
         descripcion,
         codigo: celdas[3] || '',
+        unidad: '',
         cantidad: parseFloat(String(celdas[5]||'').replace(',','.')) || 0,
-        precioUnitario: parseFloat(String(celdas[6]||'').replace(',','.')) || 0,
+        // Igual que en el XML: el unitario real sale del monto ya descontado.
+        precioUnitario: (parseFloat(String(celdas[5]||'').replace(',','.')) || 0)
+          ? Math.round(Math.round(monto) / (parseFloat(String(celdas[5]||'').replace(',','.')) || 1) * 100) / 100
+          : (parseFloat(String(celdas[6]||'').replace(',','.')) || 0),
+        precioLista: parseFloat(String(celdas[6]||'').replace(',','.')) || 0,
+        descuento: parseFloat(String(celdas[8]||'').replace(/\./g,'').replace(',','.')) || 0,
         codImptoAdic: celdas[9] || '',
         monto: Math.round(monto)
       });
@@ -1171,11 +1187,20 @@ function parseXMLSII(texto) {
       if (!monto && /referencia/i.test(descripcion)) return;
       const codLinea = txt(det, 'CodImpAdic');
       if (codLinea && esImpuestoHarina(codLinea, 0)) f.esHarina = true;
+      const cantidad = parseFloat(String(txt(det, 'QtyItem')).replace(',', '.')) || 0;
+      const precioLista = parseFloat(String(txt(det, 'PrcItem')).replace(',', '.')) || 0;
+      const descuento = parseFloat(String(txt(det, 'DescuentoMonto')).replace(/\./g, '')) || 0;
       f.detalle.push({
         descripcion,
         codigo: txt(det, 'VlrCodigo') || '',
-        cantidad: parseFloat(String(txt(det, 'QtyItem')).replace(',', '.')) || 0,
-        precioUnitario: parseFloat(String(txt(det, 'PrcItem')).replace(',', '.')) || 0,
+        unidad: limpiarTextoSII(txt(det, 'UnmdItem')),
+        cantidad,
+        // El unitario que importa para costear es el REAL, ya descontado. MontoItem
+        // viene neteado, así que se deduce de ahí: si el proveedor hizo descuento,
+        // PrcItem es el precio de lista y multiplicarlo por la cantidad no da el monto.
+        precioUnitario: cantidad ? Math.round(monto / cantidad * 100) / 100 : precioLista,
+        precioLista,
+        descuento,
         codImptoAdic: codLinea,
         monto: Math.round(monto)
       });
@@ -1233,12 +1258,18 @@ async function cargarHistorialCargas() {
       const periodo = (c.desde && c.hasta)
         ? (c.desde === c.hasta ? fmtFecha(c.desde) : `${fmtFecha(c.desde)} al ${fmtFecha(c.hasta)}`)
         : 'Sin fecha';
+      const fmt = formatoDeArchivo(c.nombreArchivo);
       return `<div style="border:1px solid ${completa ? '#d4edda' : '#ffe0b2'};background:${completa ? '#f8fff9' : '#fffdf7'};border-radius:8px;padding:10px;margin-bottom:8px;">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
           <span style="font-size:13px;font-weight:700;color:#333;">${periodo}</span>
           <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:${completa ? '#d4edda' : '#ffe0b2'};color:${completa ? '#155724' : '#856404'};white-space:nowrap;">
             ${completa ? '<svg class="ico"><use href="#i-check"/></svg> COMPLETA' : `FALTAN ${faltan}`}
           </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap;">
+          <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:${fmt.fondo};color:${fmt.color};white-space:nowrap;">${fmt.etiqueta}</span>
+          ${fmt.nota ? `<span style="font-size:10px;color:#aaa;">${fmt.nota}</span>` : ''}
+          ${c.nombreArchivo ? `<span style="font-size:10px;color:#bbb;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:190px;" title="${escHTML(c.nombreArchivo)}">${escHTML(c.nombreArchivo)}</span>` : ''}
         </div>
         <div style="font-size:11px;color:#666;margin-top:4px;">
           ${c.total} documento(s) · ${c.importados} importado(s)${c.enDuda ? ` · <span style="color:#856404;font-weight:700;">${c.enDuda} en duda</span>` : ''}
@@ -1321,6 +1352,20 @@ async function guardarNotaDocUI(i) {
   showToast(texto ? 'Nota guardada' : 'Nota quitada');
   renderCargaSII();
   cargarHistorialCargas();
+}
+
+// Deduce el formato de una carga por la extensión del archivo. Se calcula al mostrar
+// en vez de guardarse, y así las cargas que ya estaban en el historial también quedan
+// rotuladas — si se guardara, solo las nuevas lo tendrían.
+function formatoDeArchivo(nombre) {
+  const ext = String(nombre || '').toLowerCase().match(/\.([a-z0-9]+)$/);
+  switch (ext && ext[1]) {
+    case 'xml':  return { etiqueta: 'XML',  color: '#0C447C', fondo: '#e8f0fe', nota: 'detalle y vencimiento' };
+    case 'xls':
+    case 'xlsx': return { etiqueta: 'XLS',  color: '#856404', fondo: '#fff8e1', nota: 'detalle, sin vencimiento' };
+    case 'csv':  return { etiqueta: 'CSV',  color: '#555',    fondo: '#f0f0f0', nota: 'mes completo, sin detalle' };
+    default:     return { etiqueta: '—',    color: '#999',    fondo: '#f5f5f5', nota: '' };
+  }
 }
 
 // ── NOTAS DEL HISTORIAL DE CARGAS ────────────────────────────────────────────
@@ -1855,7 +1900,7 @@ function renderDetalleAsignable(i) {
         <div style="display:flex;gap:6px;align-items:center;">
           <div style="flex:1;min-width:0;">
             <div style="font-size:11px;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d.descripcion}</div>
-            <div style="font-size:10px;color:#aaa;">${d.cantidad ? `×${d.cantidad} · ` : ''}$${Math.round(Math.abs(d.monto)*factor).toLocaleString('es-CL')}</div>
+            <div style="font-size:10px;color:#aaa;">${d.cantidad ? `×${fmtCantidad(d.cantidad, d.unidad)} a $${Math.round(Math.abs(d.precioUnitario||0)*factor).toLocaleString('es-CL')} · ` : ''}$${Math.round(Math.abs(d.monto)*factor).toLocaleString('es-CL')}${d.descuento ? ` <span style="color:#27ae60;">· dto. $${Math.round(Math.abs(d.descuento)*factor).toLocaleString('es-CL')}</span>` : ''}</div>
           </div>
           <select onchange="asignarLineaDetalle(${i},${di},'item',this.value)" style="width:130px;padding:5px;border:1px solid ${d.item ? '#155724' : '#ddd'};border-radius:6px;font-size:11px;">
             <option value="">— ítem —</option>
@@ -2267,8 +2312,10 @@ function prepararFacturasParaImportar() {
       total: f.total, neto: f.neto, iva: f.iva, esHarina: f.esHarina,
       estado: f.estado, fechaEstado: f.fechaEstado, lineas: lineasFinal,
       detalle: (f.detalle || []).map(d => ({
-        descripcion: d.descripcion, codigo: d.codigo, cantidad: d.cantidad,
-        precioUnitario: d.precioUnitario, monto: d.monto * signo, item: d.item || '', area: d.area || ''
+        descripcion: d.descripcion, codigo: d.codigo, unidad: d.unidad || '',
+        cantidad: d.cantidad, precioUnitario: d.precioUnitario,
+        precioLista: d.precioLista || '', descuento: d.descuento || '',
+        monto: d.monto * signo, item: d.item || '', area: d.area || ''
       }))
     });
   });
@@ -4048,7 +4095,8 @@ async function verDetalleDocumento(rut, folio) {
         <div style="font-size:13px;color:#333;font-weight:600;">${x.descripcion}</div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:3px;gap:8px;">
           <span style="font-size:11px;color:#888;">
-            ${x.cantidad ? `${x.cantidad} × $${Math.round(parseFloat(x.precioUnitario)||0).toLocaleString('es-CL')}` : ''}
+            ${x.cantidad ? `${fmtCantidad(x.cantidad, x.unidad)} × $${Math.round((parseFloat(x.monto)||0) / (parseFloat(x.cantidad)||1)).toLocaleString('es-CL')}` : ''}
+            ${parseFloat(x.descuento) ? ` · <span style="color:#27ae60;">dto. $${Math.round(parseFloat(x.descuento)).toLocaleString('es-CL')}</span>` : ''}
             ${x.item ? ` · ${x.item}` : ''}${x.area ? ` · ${x.area}` : ''}
           </span>
           <span style="font-size:13px;font-weight:700;color:#003a79;white-space:nowrap;">$${Math.round(parseFloat(x.monto)||0).toLocaleString('es-CL')}</span>
