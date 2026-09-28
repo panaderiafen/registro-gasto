@@ -171,21 +171,217 @@
     opacity:0; transition:opacity 0.3s; pointer-events:none;
     white-space:nowrap; box-shadow:0 4px 16px rgba(0,0,0,0.2);
   }
+
+  /* ── ÍCONOS DE LÍNEA (SVG propio, grilla 24x24, trazo 1,8, puntas redondeadas) ──
+     Se dibujan con el color del texto que los rodea, así heredan solos el rojo de
+     "vencida", el verde de "pagado", el azul de los botones, etc. */
+  .ico {
+    width: 1.05em; height: 1.05em; display: inline-block; vertical-align: -0.16em;
+    flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.8;
+    stroke-linecap: round; stroke-linejoin: round; overflow: visible;
+  }
+  .campo-busqueda { position: relative; display: block; }
+  .campo-busqueda > .ico { position: absolute; left: 13px; top: 11px; width: 17px; height: 17px; color: #aaa; pointer-events: none; }
+  .ico-girar { animation: ico-girar 0.9s linear infinite; }
+  @keyframes ico-girar { to { transform: rotate(360deg); } }
+
   #toast.show { opacity:1; }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     VISTA ESCRITORIO — se activa solo sobre 900 px de ancho.
+     Todo lo de arriba es la vista de celular y queda intacto: bajo 900 px
+     ninguna de estas reglas se aplica. Es la MISMA app, reorganizada.
+     ══════════════════════════════════════════════════════════════════════ */
+  @media (min-width: 900px) {
+
+    body { background: #eef1f5; padding-bottom: 40px; }
+
+    /* ── Encabezado fijo: título a la izquierda, pestañas a la derecha ── */
+    .header {
+      position: sticky; top: 0; z-index: 900;
+      display: flex; align-items: center; gap: 14px;
+      padding: 0 28px; text-align: left;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+    }
+    .header h1 { font-size: 16px; margin: 0; white-space: nowrap; }
+    .header p  { font-size: 12px; margin: 0; opacity: 0.55; white-space: nowrap; }
+    .nav-tabs  { margin-left: auto; border-top: none; }
+    .nav-tab   { flex: 0 0 auto; padding: 17px 16px; font-size: 13px; }
+    .nav-tab:hover { color: #fff; background: rgba(255,255,255,0.08); }
+    .nav-tab .badge { top: 9px; right: 4px; }
+
+    .container { max-width: 1180px; padding: 24px 28px 48px; }
+
+    /* ── Estados hover: en celular no existen, solo :active ── */
+    .card { transition: box-shadow .15s; }
+    .area-btn:hover { border-color: #9dbfe0; }
+    .btn-submit:hover { background: #00509e; }
+    .btn-agregar:hover { background: #f0f7ff; }
+    .record-item:hover { border-color: #b9cfe6; }
+    .oblig-item:hover { box-shadow: 0 3px 14px rgba(0,0,0,0.10); }
+    .upload-zone:hover { border-color: #2F75B6; }
+
+    /* ── Ventanas modales centradas (en celular suben desde abajo) ── */
+    .modal-overlay { align-items: center; }
+    .modal {
+      border-radius: 16px; max-width: 580px; max-height: 88vh;
+      padding: 26px 26px 30px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.30);
+    }
+    #modalVerBoleta .modal, #modalDetalleDoc .modal { max-width: 860px; }
+    .modal-actions { grid-template-columns: auto auto; justify-content: end; }
+    .btn-cancelar, .btn-confirmar { padding: 12px 30px; }
+
+    /* ══ REGISTRAR ═══════════════════════════════════════════════════════
+       Formulario a la izquierda; los últimos registros quedan fijos a la
+       derecha, visibles mientras se llena el formulario.                  */
+    /* !important porque el JS escribe display:block/none en línea al registrar
+       un gasto; el selector [style*="none"] preserva el ocultamiento. */
+    #formSection {
+      display: grid !important;
+      grid-template-columns: minmax(0,1fr) minmax(0,1fr) 330px;
+      column-gap: 22px; row-gap: 0;
+      align-items: start;
+    }
+    #formSection > *                { grid-column: 1 / 3; }
+    #formSection > #cardFechaCompra { grid-column: 1 / 2; }
+    #formSection > #cardFormaPago   { grid-column: 2 / 3; }
+    #formSection > .records-section {
+      grid-column: 3 / 4;
+      grid-row: 1 / span 40;
+      margin-top: 0 !important;
+      position: sticky; top: 78px;
+      max-height: calc(100vh - 110px); overflow-y: auto;
+      padding-right: 4px;
+    }
+    #formSection[style*="none"] { display: none !important; }
+    /* Categoría · Tipo · Sub tipo · Área en una fila (en celular van 2x2) */
+    .info-grid { grid-template-columns: repeat(4, 1fr); }
+    #btnSubmit { justify-self: start; width: auto; padding: 15px 48px; }
+    .success-screen { padding: 70px 20px; }
+
+    /* ══ OBLIGACIONES ════════════════════════════════════════════════════ */
+    #panoramaMes { display: grid; grid-template-columns: 1fr 1fr; column-gap: 28px; }
+    .btn-agregar { display: inline-block; width: auto; padding: 12px 28px; }
+    #obligList {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 12px; align-items: stretch;
+    }
+    #obligList > .oblig-item { margin-bottom: 0; }
+    #obligList > .loading-text { grid-column: 1 / -1; }
+    #gestionPlantillasList {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 10px; align-items: stretch;
+    }
+    #gestionPlantillasList > div { margin-bottom: 0 !important; }
+    #gestionPlantillasList > .empty-records { grid-column: 1 / -1; }
+
+    /* ══ ANÁLISIS ════════════════════════════════════════════════════════ */
+    /* Mismo caso que #formSection: el JS lo muestra con display:block en línea. */
+    #anContenido {
+      display: grid !important; grid-template-columns: 1fr 1fr;
+      gap: 16px; align-items: start;
+    }
+    #anContenido[style*="none"] { display: none !important; }
+    #anContenido > .card { margin-bottom: 0; }
+    /* Resumen del mes: ancho completo, los 4 indicadores en una fila */
+    #anContenido > .card:nth-child(1) { grid-column: 1 / -1; }
+    #anContenido > .card:nth-child(1) > div:last-child { grid-template-columns: repeat(4, 1fr) !important; }
+    /* Evolución mensual: ancho completo y al final (necesita el espacio) */
+    #anContenido > .card:nth-child(5) { grid-column: 1 / -1; order: 9; }
+
+    /* ══ CARGA SII ═══════════════════════════════════════════════════════ */
+    #sec-carga .container {
+      display: grid; grid-template-columns: 1fr 1fr;
+      column-gap: 22px; row-gap: 0; align-items: start;
+    }
+    #sec-carga .container > *               { grid-column: 1 / -1; }
+    #sec-carga .container > .card:nth-child(1) { grid-column: 1 / 2; }
+    #sec-carga .container > .card:nth-child(2) { grid-column: 2 / 3; }
+    #cargaLista {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(470px, 1fr));
+      gap: 14px; align-items: start;
+    }
+    #cargaLista > .card { margin-bottom: 0; }
+
+    /* ══ ÍTEMS ═══════════════════════════════════════════════════════════ */
+    #itemsList table {
+      width: 100%; border-collapse: collapse; background: white;
+      border: 0.5px solid #e0e0e0; border-radius: 12px; overflow: hidden;
+    }
+    #itemsList th {
+      background: #f7f9fc; font-size: 11px; font-weight: 700; color: #888;
+      text-transform: uppercase; letter-spacing: .04em; text-align: left;
+      padding: 11px 12px; border-bottom: 1px solid #e8eef5;
+    }
+    #itemsList td { padding: 10px 12px; border-bottom: 1px solid #f2f2f2; font-size: 14px; }
+    #itemsList tbody tr:last-child td { border-bottom: none; }
+    #itemsList tbody tr:hover td { background: #f7fbff; }
+  }
 </style>
 
 </head>
 <body>
 
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+<symbol id="i-recibo" viewBox="0 0 24 24"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M8 7h8M8 11h8M8 15h5"/></symbol>
+<symbol id="i-registrar" viewBox="0 0 24 24"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.4 2.6a2 2 0 0 1 2.8 2.8L12 14.6l-3.8.9.9-3.8Z"/></symbol>
+<symbol id="i-calendario" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16.5" rx="2"/><path d="M8 2.5v4M16 2.5v4M3 10h18"/></symbol>
+<symbol id="i-grafico" viewBox="0 0 24 24"><path d="M3 3v16.5a1.5 1.5 0 0 0 1.5 1.5H21"/><path d="M8 17v-4M13 17V8M18 17v-6"/></symbol>
+<symbol id="i-descargar" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7.5 10 12 14.5 16.5 10"/><path d="M12 14.5V3"/></symbol>
+<symbol id="i-lista" viewBox="0 0 24 24"><path d="M8.5 6H21M8.5 12H21M8.5 18H21M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></symbol>
+<symbol id="i-portapapeles" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></symbol>
+<symbol id="i-billete" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></symbol>
+<symbol id="i-tarjeta" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></symbol>
+<symbol id="i-camara" viewBox="0 0 24 24"><path d="M14.5 4h-5L7.5 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.5L14.5 4Z"/><circle cx="12" cy="13" r="3.2"/></symbol>
+<symbol id="i-imagen" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.8" cy="8.8" r="1.8"/><path d="m21 15.5-4.1-4.1a2 2 0 0 0-2.8 0L4.5 21"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6.5 9.2 17.3 4 12.1"/></symbol>
+<symbol id="i-check-circ" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8.2 12.2 2.6 2.6 5-5.2"/></symbol>
+<symbol id="i-buscar" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="7"/><path d="m20.5 20.5-4.7-4.7"/></symbol>
+<symbol id="i-historial" viewBox="0 0 24 24"><path d="M3.2 12a8.8 8.8 0 1 0 2.9-6.5L3 8.2"/><path d="M3 3.2v5h5"/><path d="M12 7.5V12l3.2 1.9"/></symbol>
+<symbol id="i-chevron-ab" viewBox="0 0 24 24"><path d="m6 9.5 6 6 6-6"/></symbol>
+<symbol id="i-chevron-ar" viewBox="0 0 24 24"><path d="m6 14.5 6-6 6 6"/></symbol>
+<symbol id="i-ajustes" viewBox="0 0 24 24"><path d="M4 21v-6M4 11V3M12 21v-9M12 8V3M20 21v-4M20 13V3"/><path d="M1.5 15h5M9.5 12h5M17.5 17h5"/></symbol>
+<symbol id="i-recargar" viewBox="0 0 24 24"><path d="M3 11.5a9 9 0 0 1 15.1-5.6L21 8.5"/><path d="M21 3.5v5h-5"/><path d="M21 12.5a9 9 0 0 1-15.1 5.6L3 15.5"/><path d="M3 20.5v-5h5"/></symbol>
+<symbol id="i-pin-mapa" viewBox="0 0 24 24"><path d="M20 10.4c0 5.6-8 11.6-8 11.6s-8-6-8-11.6a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10.2" r="3"/></symbol>
+<symbol id="i-etiqueta" viewBox="0 0 24 24"><path d="M20.6 13.3 13.3 20.6a2 2 0 0 1-2.8 0l-7.1-7.1a2 2 0 0 1-.6-1.4V4.4a2 2 0 0 1 2-2h7.7a2 2 0 0 1 1.4.6l6.7 6.7a2 2 0 0 1 0 2.8Z"/><circle cx="7.6" cy="7.6" r="1.2"/></symbol>
+<symbol id="i-cruce" viewBox="0 0 24 24"><path d="M16 3.5h4.5V8"/><path d="M3.5 20.5 20.5 3.5"/><path d="M16 20.5h4.5V16"/><path d="m15 15 5.5 5.5"/><path d="M3.5 3.5 9 9"/></symbol>
+<symbol id="i-tendencia" viewBox="0 0 24 24"><path d="M22 7.5 14 15.5l-4-4-8 8"/><path d="M16.5 7.5H22V13"/></symbol>
+<symbol id="i-estrella" viewBox="0 0 24 24"><path d="m12 2.8 2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3-5.8 3 1.1-6.5L2.6 9.6l6.5-.9Z"/></symbol>
+<symbol id="i-capas" viewBox="0 0 24 24"><path d="m12 2.5 9.5 5-9.5 5-9.5-5 9.5-5Z"/><path d="m2.5 12.5 9.5 5 9.5-5"/><path d="m2.5 17 9.5 5 9.5-5"/></symbol>
+<symbol id="i-basura" viewBox="0 0 24 24"><path d="M3.5 6h17"/><path d="M8.5 6V4.2a1.7 1.7 0 0 1 1.7-1.7h3.6a1.7 1.7 0 0 1 1.7 1.7V6"/><path d="M18.6 6l-.9 13.4a2 2 0 0 1-2 1.9H8.3a2 2 0 0 1-2-1.9L5.4 6"/><path d="M10 11v5.5M14 11v5.5"/></symbol>
+<symbol id="i-chispas" viewBox="0 0 24 24"><path d="m12 3 1.8 4.4L18.2 9.2l-4.4 1.8L12 15.4l-1.8-4.4L5.8 9.2l4.4-1.8Z"/><path d="m19 14.5.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9Z"/></symbol>
+<symbol id="i-archivar" viewBox="0 0 24 24"><rect x="2.5" y="3.5" width="19" height="5" rx="1.5"/><path d="M4.5 8.5v10a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-10"/><path d="M10 12.5h4"/></symbol>
+<symbol id="i-enlace-ext" viewBox="0 0 24 24"><path d="M15 3.5h5.5V9"/><path d="M10.5 13.5 20.5 3.5"/><path d="M20 14v5.5a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2H11"/></symbol>
+<symbol id="i-alerta" viewBox="0 0 24 24"><path d="M10.3 3.9 2.4 17.6a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9.2v4.2M12 17h.01"/></symbol>
+<symbol id="i-punto" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.6"/></symbol>
+<symbol id="i-alerta-circ" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.6v5M12 16.2h.01"/></symbol>
+<symbol id="i-flecha-der" viewBox="0 0 24 24"><path d="M4 12h15.5"/><path d="m13.5 6 6 6-6 6"/></symbol>
+<symbol id="i-reloj" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 6.8V12l3.4 2"/></symbol>
+<symbol id="i-documento" viewBox="0 0 24 24"><path d="M14 2.5H6.5a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V8Z"/><path d="M14 2.5V8h5.5"/><path d="M8.5 13h7M8.5 17h7"/></symbol>
+<symbol id="i-trigo" viewBox="0 0 24 24"><path d="M12 21.5v-9.2"/><path d="M12 12.3c-2.3 0-3.7-1.7-3.7-3.8 2.3 0 3.7 1.7 3.7 3.8Z"/><path d="M12 12.3c2.3 0 3.7-1.7 3.7-3.8-2.3 0-3.7 1.7-3.7 3.8Z"/><path d="M12 8c-2.3 0-3.7-1.7-3.7-3.8C10.6 4.2 12 5.9 12 8Z"/><path d="M12 8c2.3 0 3.7-1.7 3.7-3.8C13.4 4.2 12 5.9 12 8Z"/></symbol>
+<symbol id="i-tijeras" viewBox="0 0 24 24"><circle cx="6.5" cy="6.5" r="2.8"/><circle cx="6.5" cy="17.5" r="2.8"/><path d="M20.5 3.5 9 15"/><path d="M14.5 14.5 20.5 20.5"/><path d="M8.8 8.8 12 12"/></symbol>
+<symbol id="i-ampolleta" viewBox="0 0 24 24"><path d="M9.5 18.5h5"/><path d="M10.5 21.5h3"/><path d="M12 2.5a6.5 6.5 0 0 0-3.8 11.8v1.7h7.6v-1.7A6.5 6.5 0 0 0 12 2.5Z"/></symbol>
+<symbol id="i-clip" viewBox="0 0 24 24"><path d="M21 11.5 12.2 20.3a5.2 5.2 0 0 1-7.4-7.4l8.9-8.9a3.5 3.5 0 0 1 4.9 4.9l-8.8 8.9a1.7 1.7 0 0 1-2.5-2.5l8.2-8.2"/></symbol>
+<symbol id="i-cargando" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></symbol>
+<symbol id="i-reproducir" viewBox="0 0 24 24"><path d="M7.5 4.5v15l12-7.5Z"/></symbol>
+<symbol id="i-lapiz" viewBox="0 0 24 24"><path d="M17.6 3.2a2.4 2.4 0 0 1 3.4 3.4L7.5 20.1l-4.5 1.1 1.1-4.5Z"/><path d="m15.5 5.3 3.4 3.4"/></symbol>
+<symbol id="i-mas" viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13"/></symbol>
+</svg>
+
+
 <div class="header">
-  <h1>🧾 Gestión de Gastos</h1>
+  <h1><svg class="ico"><use href="#i-recibo"/></svg> Gestión de Gastos</h1>
   <p>Panadería Fën</p>
   <div class="nav-tabs">
-    <div class="nav-tab active" onclick="showSection('registrar',this)">📝 Registrar</div>
-    <div class="nav-tab" onclick="showSection('obligaciones',this)">📅 Obligaciones<span class="badge" id="badgeOblig"></span></div>
-    <div class="nav-tab" onclick="showSection('analisis',this)">📊 Análisis</div>
-    <div class="nav-tab" onclick="showSection('carga',this)">📥 Carga SII</div>
-    <div class="nav-tab" onclick="showSection('items',this)">📋 Ítems</div>
+    <div class="nav-tab active" onclick="showSection('registrar',this)"><svg class="ico"><use href="#i-registrar"/></svg> Registrar</div>
+    <div class="nav-tab" onclick="showSection('obligaciones',this)"><svg class="ico"><use href="#i-calendario"/></svg> Obligaciones<span class="badge" id="badgeOblig"></span></div>
+    <div class="nav-tab" onclick="showSection('analisis',this)"><svg class="ico"><use href="#i-grafico"/></svg> Análisis</div>
+    <div class="nav-tab" onclick="showSection('carga',this)"><svg class="ico"><use href="#i-descargar"/></svg> Carga SII</div>
+    <div class="nav-tab" onclick="showSection('items',this)"><svg class="ico"><use href="#i-lista"/></svg> Ítems</div>
   </div>
 </div>
 
@@ -195,7 +391,7 @@
 
   <!-- ÍTEMS MÚLTIPLES -->
   <div id="itemsSecciones"></div>
-  <button type="button" id="btnAgregarItem" onclick="agregarSeccionItem()" class="hidden" style="width:100%;padding:12px;margin-bottom:16px;background:transparent;border:1.5px dashed #003a79;border-radius:10px;color:#003a79;font-size:14px;font-weight:600;cursor:pointer;">+ Agregar otro ítem</button>
+  <button type="button" id="btnAgregarItem" onclick="agregarSeccionItem()" class="hidden" style="width:100%;padding:12px;margin-bottom:16px;background:transparent;border:1.5px dashed #003a79;border-radius:10px;color:#003a79;font-size:14px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-mas"/></svg> Agregar otro ítem</button>
 
   <!-- RESUMEN TOTAL -->
   <div class="card hidden" id="cardResumenTotal" style="background:#f0f7ff;border:1.5px solid #003a79;">
@@ -226,9 +422,9 @@
   <div class="card hidden" id="cardFormaPago">
     <label>Forma de pago</label>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:4px;">
-      <button class="area-btn selected" id="btnContado" onclick="selFormaPago('contado')">💵 Contado</button>
-      <button class="area-btn" id="btnTarjeta" onclick="selFormaPago('tarjeta')">💳 Tarjeta</button>
-      <button class="area-btn" id="btnCredProv" onclick="selFormaPago('proveedor')">📋 Crédito</button>
+      <button class="area-btn selected" id="btnContado" onclick="selFormaPago('contado')"><svg class="ico"><use href="#i-billete"/></svg> Contado</button>
+      <button class="area-btn" id="btnTarjeta" onclick="selFormaPago('tarjeta')"><svg class="ico"><use href="#i-tarjeta"/></svg> Tarjeta</button>
+      <button class="area-btn" id="btnCredProv" onclick="selFormaPago('proveedor')"><svg class="ico"><use href="#i-portapapeles"/></svg> Crédito</button>
     </div>
     <div id="cardFechaPago" class="hidden" style="margin-top:12px;">
       <label style="margin-bottom:6px;">Fecha de pago</label>
@@ -241,11 +437,11 @@
   <div class="card">
     <label>Foto de la boleta o factura</label>
     <div class="upload-zone" id="uploadZone" style="cursor:default;">
-      <span id="uploadIcon" style="font-size:36px;display:block;margin-bottom:10px">📷</span>
+      <span id="uploadIcon" style="font-size:36px;display:block;margin-bottom:10px"><svg class="ico"><use href="#i-camara"/></svg></span>
       <p id="uploadText">Selecciona una opción</p>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;" id="uploadBtns">
-        <button type="button" onclick="document.getElementById('fileInputCam').click()" style="padding:10px;background:#003a79;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">📷 Cámara</button>
-        <button type="button" onclick="document.getElementById('fileInputGal').click()" style="padding:10px;background:#f0f4ff;color:#003a79;border:1.5px solid #003a79;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">🖼️ Galería</button>
+        <button type="button" onclick="document.getElementById('fileInputCam').click()" style="padding:10px;background:#003a79;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-camara"/></svg> Cámara</button>
+        <button type="button" onclick="document.getElementById('fileInputGal').click()" style="padding:10px;background:#f0f4ff;color:#003a79;border:1.5px solid #003a79;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-imagen"/></svg> Galería</button>
       </div>
     </div>
     <input type="file" id="fileInputCam" accept="image/*" capture="environment" style="display:none"/>
@@ -259,18 +455,18 @@
     <textarea id="observacion" placeholder="Ej: compra urgente, proveedor nuevo..."></textarea>
   </div>
 
-  <button class="btn-submit" id="btnSubmit" disabled>✓ Registrar gasto</button>
+  <button class="btn-submit" id="btnSubmit" disabled><svg class="ico"><use href="#i-check"/></svg> Registrar gasto</button>
 
   <div class="records-section" style="margin-top:28px">
     <div class="records-title">Últimos registros <span class="badge-count" id="countBadge">0</span></div>
-    <input type="text" id="buscarRegistro" placeholder="🔍 Buscar por ítem, monto o fecha..." oninput="renderRecords()" style="width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;"/>
+    <span class="campo-busqueda"><svg class="ico"><use href="#i-buscar"/></svg><input type="text" id="buscarRegistro" placeholder="Buscar por ítem, monto o fecha..." oninput="renderRecords()" style="width:100%;padding:10px 14px 10px 38px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;"/></span>
     <div id="recordsList"><div class="empty-records">Cargando registros...</div></div>
     <button id="btnVerMas" onclick="verMasRegistros()" class="hidden" style="width:100%;padding:10px;margin-top:8px;background:white;border:1px solid #ddd;border-radius:8px;font-size:13px;font-weight:600;color:#003a79;cursor:pointer;">Ver más registros</button>
   </div>
 </div>
 
 <div class="success-screen" id="successScreen">
-  <div class="icon">✅</div>
+  <div class="icon"><svg class="ico"><use href="#i-check-circ"/></svg></div>
   <h2>¡Gasto registrado!</h2>
   <p>El gasto fue guardado correctamente.<br>Puedes registrar otro o cerrar.</p>
   <button class="btn-new" id="btnNew">Registrar otro</button>
@@ -282,16 +478,16 @@
 <div class="container">
   <div id="alertaBanner"></div>
   <div class="card" style="padding:16px;">
-    <div id="panoramaMesTitulo" style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:10px;">📅 Panorama del mes</div>
+    <div id="panoramaMesTitulo" style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:10px;"><svg class="ico"><use href="#i-calendario"/></svg> Panorama del mes</div>
     <div id="panoramaMes"><div style="font-size:13px;color:#aaa;text-align:center;padding:6px 0;">Cargando...</div></div>
   </div>
-  <button class="btn-agregar" onclick="abrirModalObligacion()">+ Agregar obligación</button>
+  <button class="btn-agregar" onclick="abrirModalObligacion()"><svg class="ico"><use href="#i-mas"/></svg> Agregar obligación</button>
   <div id="obligList"><div class="loading-text">Cargando obligaciones...</div></div>
 
   <div class="records-section" style="margin-top:20px">
     <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleHistorialPagos()">
-      <div class="records-title" style="margin-bottom:0;">📜 Historial de pagos</div>
-      <span id="historialToggleIcon" style="font-size:13px;color:#003a79;font-weight:600;">Ver ▾</span>
+      <div class="records-title" style="margin-bottom:0;"><svg class="ico"><use href="#i-historial"/></svg> Historial de pagos</div>
+      <span id="historialToggleIcon" style="font-size:13px;color:#003a79;font-weight:600;">Ver <svg class="ico"><use href="#i-chevron-ab"/></svg></span>
     </div>
     <div id="historialPagosPanel" class="hidden" style="margin-top:10px;">
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
@@ -305,8 +501,8 @@
 
   <div class="records-section" style="margin-top:16px">
     <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleGestionPlantillas()">
-      <div class="records-title" style="margin-bottom:0;">⚙️ Gestionar obligaciones (todas las reglas)</div>
-      <span id="gestionToggleIcon" style="font-size:13px;color:#003a79;font-weight:600;">Ver ▾</span>
+      <div class="records-title" style="margin-bottom:0;"><svg class="ico"><use href="#i-ajustes"/></svg> Gestionar obligaciones (todas las reglas)</div>
+      <span id="gestionToggleIcon" style="font-size:13px;color:#003a79;font-weight:600;">Ver <svg class="ico"><use href="#i-chevron-ab"/></svg></span>
     </div>
     <div id="gestionPlantillasPanel" class="hidden" style="margin-top:10px;">
       <div style="font-size:12px;color:#888;margin-bottom:10px;">Acá ves TODAS las reglas que el sistema tiene registradas, estén generando vencimientos ahora o no.</div>
@@ -330,11 +526,11 @@
       </select>
       <select id="anAnio" onchange="cargarAnalisis()" style="width:90px;font-size:14px;padding:8px 10px;">
       </select>
-      <button onclick="cargarAnalisis()" style="padding:8px 14px;background:#003a79;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">🔄</button>
+      <button onclick="cargarAnalisis()" style="padding:8px 14px;background:#003a79;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-recargar"/></svg></button>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
-      <button id="btnDevengado" class="area-btn selected" onclick="setModoAnalisis('devengado')" style="font-size:12px;padding:8px;">📋 Devengado</button>
-      <button id="btnCaja" class="area-btn" onclick="setModoAnalisis('caja')" style="font-size:12px;padding:8px;">💵 Flujo de caja</button>
+      <button id="btnDevengado" class="area-btn selected" onclick="setModoAnalisis('devengado')" style="font-size:12px;padding:8px;"><svg class="ico"><use href="#i-portapapeles"/></svg> Devengado</button>
+      <button id="btnCaja" class="area-btn" onclick="setModoAnalisis('caja')" style="font-size:12px;padding:8px;"><svg class="ico"><use href="#i-billete"/></svg> Flujo de caja</button>
     </div>
     <div id="anModoHint" style="font-size:11px;color:#888;margin-top:6px;text-align:center;">Devengado: por fecha de compra · Caja: por fecha de pago</div>
   </div>
@@ -344,7 +540,7 @@
 
     <!-- RESUMEN TOTAL -->
     <div class="card" style="padding:16px;">
-      <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:12px;">📋 Resumen del mes</div>
+      <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:12px;"><svg class="ico"><use href="#i-portapapeles"/></svg> Resumen del mes</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <div style="background:#f0f7ff;border-radius:10px;padding:12px;text-align:center;">
           <div style="font-size:11px;color:#666;font-weight:600;text-transform:uppercase;">Total gastos</div>
@@ -367,31 +563,31 @@
 
     <!-- POR ÁREA -->
     <div class="card" style="padding:16px;">
-      <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:12px;">📍 Por área</div>
+      <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:12px;"><svg class="ico"><use href="#i-pin-mapa"/></svg> Por área</div>
       <div id="anAreas"></div>
     </div>
 
     <!-- POR CATEGORÍA FIJO/VARIABLE -->
     <div class="card" style="padding:16px;">
-      <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:12px;">🏷️ Fijo vs Variable</div>
+      <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:12px;"><svg class="ico"><use href="#i-etiqueta"/></svg> Fijo vs Variable</div>
       <div id="anFijoVar"></div>
     </div>
 
     <!-- POR TIPO DIRECTO/INDIRECTO -->
     <div class="card" style="padding:16px;">
-      <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:12px;">🔀 Directo vs Indirecto</div>
+      <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:12px;"><svg class="ico"><use href="#i-cruce"/></svg> Directo vs Indirecto</div>
       <div id="anDirInd"></div>
     </div>
 
     <!-- EVOLUCIÓN MENSUAL -->
     <div class="card" style="padding:16px;">
-      <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:12px;">📈 Evolución mensual</div>
+      <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:12px;"><svg class="ico"><use href="#i-tendencia"/></svg> Evolución mensual</div>
       <div id="anEvolucion"></div>
     </div>
 
     <!-- TOP ÍTEMS -->
     <div class="card" style="padding:16px;">
-      <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:12px;">🔝 Top ítems del mes</div>
+      <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:12px;"><svg class="ico"><use href="#i-estrella"/></svg> Top ítems del mes</div>
       <div id="anTopItems"></div>
     </div>
 
@@ -403,20 +599,20 @@
 <div id="sec-carga" class="section">
 <div class="container">
   <div class="card">
-    <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:8px;">📥 Importar registro de compras del SII</div>
+    <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:8px;"><svg class="ico"><use href="#i-descargar"/></svg> Importar registro de compras del SII</div>
     <div style="font-size:12px;color:#888;margin-bottom:12px;">Acepta dos formatos del SII:<br>• <strong>Registro de Compras</strong> (.csv) — el mes completo, sin detalle de productos<br>• <strong>Documentos recibidos</strong> (.xls) — hasta 20 documentos, <strong>con detalle de cada producto</strong></div>
     <input type="file" id="archivoSII" accept=".csv,.xls,.xlsx" onchange="leerArchivoSII(this)" style="width:100%;padding:10px;border:1.5px dashed #003a79;border-radius:8px;font-size:13px;background:#f8faff;"/>
     <div id="cargaResumen" style="margin-top:12px;"></div>
   </div>
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleHistorialCargas()">
-      <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;">📚 Historial de cargas <span id="historialCargasBadge" style="font-weight:400;color:#888;text-transform:none;"></span></div>
-      <span id="historialCargasIcon" style="font-size:13px;color:#003a79;font-weight:600;">Ver ▾</span>
+      <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;"><svg class="ico"><use href="#i-capas"/></svg> Historial de cargas <span id="historialCargasBadge" style="font-weight:400;color:#888;text-transform:none;"></span></div>
+      <span id="historialCargasIcon" style="font-size:13px;color:#003a79;font-weight:600;">Ver <svg class="ico"><use href="#i-chevron-ab"/></svg></span>
     </div>
     <div id="historialCargas" class="hidden" style="margin-top:10px;"></div>
   </div>
   <div id="buscadorCargaWrap" class="hidden" style="margin-bottom:10px;">
-    <input type="text" id="buscarCarga" placeholder="🔍 Buscar por folio, proveedor o RUT..." oninput="renderCargaSII()" style="width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;"/>
+    <span class="campo-busqueda"><svg class="ico"><use href="#i-buscar"/></svg><input type="text" id="buscarCarga" placeholder="Buscar por folio, proveedor o RUT..." oninput="renderCargaSII()" style="width:100%;padding:10px 14px 10px 38px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;"/></span>
     <div id="buscarCargaHint" style="font-size:11px;color:#888;margin-top:4px;"></div>
   </div>
   <div id="cargaLista"></div>
@@ -426,7 +622,7 @@
 <!-- ===== SECCIÓN ÍTEMS ===== -->
 <div id="sec-items" class="section">
 <div class="container">
-  <button class="btn-agregar" onclick="abrirModalItem()">+ Agregar ítem</button>
+  <button class="btn-agregar" onclick="abrirModalItem()"><svg class="ico"><use href="#i-mas"/></svg> Agregar ítem</button>
   <div id="itemsList"><div class="loading-text">Cargando ítems...</div></div>
 </div>
 </div>
@@ -484,7 +680,7 @@
       <button class="btn-cancelar" onclick="cerrarModal('modalItem')">Cancelar</button>
       <button class="btn-confirmar" id="btnGuardarItem" onclick="guardarItem()">Guardar</button>
     </div>
-    <button class="btn-eliminar hidden" id="btnEliminarItem" onclick="eliminarItem()">🗑 Eliminar este ítem</button>
+    <button class="btn-eliminar hidden" id="btnEliminarItem" onclick="eliminarItem()"><svg class="ico"><use href="#i-basura"/></svg> Eliminar este ítem</button>
   </div>
 </div>
 
@@ -509,7 +705,7 @@
     <div class="modal-field hidden" id="pagoAreasCampo">
       <label>Distribución por área <span style="font-weight:400;color:#aaa">(montos reales de este pago)</span></label>
       <div id="pagoAreasFilas"></div>
-      <button type="button" onclick="agregarFilaAreaPago()" style="width:100%;padding:8px;margin-top:6px;background:transparent;border:1.5px dashed #003a79;border-radius:8px;color:#003a79;font-size:12px;font-weight:600;cursor:pointer;">+ Agregar área</button>
+      <button type="button" onclick="agregarFilaAreaPago()" style="width:100%;padding:8px;margin-top:6px;background:transparent;border:1.5px dashed #003a79;border-radius:8px;color:#003a79;font-size:12px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-mas"/></svg> Agregar área</button>
       <div id="pagoAreasHint" style="font-size:12px;color:#003a79;margin-top:6px;"></div>
     </div>
     <div class="modal-field">
@@ -519,11 +715,11 @@
     <div class="modal-field">
       <label>Comprobante <span style="font-weight:400;color:#aaa">(opcional)</span></label>
       <div class="upload-zone" id="pagoUploadZone" style="padding:16px 20px;cursor:default;">
-        <span id="pagoUploadIcon" style="font-size:28px;display:block;margin-bottom:6px">📷</span>
+        <span id="pagoUploadIcon" style="font-size:28px;display:block;margin-bottom:6px"><svg class="ico"><use href="#i-camara"/></svg></span>
         <p id="pagoUploadText" style="font-size:13px;">Selecciona una opción</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;" id="pagoUploadBtns">
-          <button type="button" onclick="document.getElementById('pagoFileInputCam').click()" style="padding:8px;background:#003a79;color:white;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">📷 Cámara</button>
-          <button type="button" onclick="document.getElementById('pagoFileInputGal').click()" style="padding:8px;background:#f0f4ff;color:#003a79;border:1.5px solid #003a79;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🖼️ Galería</button>
+          <button type="button" onclick="document.getElementById('pagoFileInputCam').click()" style="padding:8px;background:#003a79;color:white;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-camara"/></svg> Cámara</button>
+          <button type="button" onclick="document.getElementById('pagoFileInputGal').click()" style="padding:8px;background:#f0f4ff;color:#003a79;border:1.5px solid #003a79;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-imagen"/></svg> Galería</button>
         </div>
       </div>
       <input type="file" id="pagoFileInputCam" accept="image/*" capture="environment" style="display:none"/>
@@ -536,7 +732,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn-cancelar" onclick="cerrarModal('modalPago')">Cancelar</button>
-      <button class="btn-confirmar" id="btnConfirmarPago" onclick="confirmarPago()">✓ Confirmar pago</button>
+      <button class="btn-confirmar" id="btnConfirmarPago" onclick="confirmarPago()"><svg class="ico"><use href="#i-check"/></svg> Confirmar pago</button>
     </div>
   </div>
 </div>
@@ -570,14 +766,14 @@
       <div id="obligAreaSelector" class="hidden" style="margin-top:10px;">
         <label style="margin-bottom:6px;">Distribución por área <span style="font-weight:400;color:#aaa;font-size:12px;">(monto en $)</span></label>
         <div id="obligSelAreaFilas"></div>
-        <button type="button" onclick="agregarFilaAreaOblig()" style="width:100%;padding:8px;margin-top:6px;background:transparent;border:1.5px dashed #003a79;border-radius:8px;color:#003a79;font-size:13px;font-weight:600;cursor:pointer;">+ Agregar área</button>
+        <button type="button" onclick="agregarFilaAreaOblig()" style="width:100%;padding:8px;margin-top:6px;background:transparent;border:1.5px dashed #003a79;border-radius:8px;color:#003a79;font-size:13px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-mas"/></svg> Agregar área</button>
         <div id="obligSelAreaHint" style="font-size:12px;color:#888;margin-top:4px;"></div>
       </div>
       <!-- Prorrateo si es PRORRATEADO -->
       <div id="obligProrrateoSelector" class="hidden" style="margin-top:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
           <label style="margin:0;">Distribución por área</label>
-          <button type="button" onclick="sugerirProrrateo()" style="font-size:11px;padding:5px 10px;background:#e8f0fe;color:#003a79;border:1px solid #003a79;border-radius:6px;font-weight:600;cursor:pointer;">✨ Sugerir por ventas</button>
+          <button type="button" onclick="sugerirProrrateo()" style="font-size:11px;padding:5px 10px;background:#e8f0fe;color:#003a79;border:1px solid #003a79;border-radius:6px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-chispas"/></svg> Sugerir por ventas</button>
         </div>
         <div id="sugerenciaProrrateo" style="display:none;font-size:12px;color:#2980b9;margin-bottom:8px;padding:6px 10px;background:#e8f4fd;border-radius:6px;"></div>
         <div class="prorrateo-row">
@@ -617,7 +813,7 @@
     <div class="modal-field hidden" id="campoCuponera">
       <label>Cuotas <span style="font-weight:400;color:#aaa">(fecha y monto de cada una)</span></label>
       <div id="cuponeraFilas"></div>
-      <button type="button" id="btnAgregarCuota" onclick="agregarFilaCuota()" style="width:100%;padding:8px;margin-top:6px;background:transparent;border:1.5px dashed #003a79;border-radius:8px;color:#003a79;font-size:12px;font-weight:600;cursor:pointer;">+ Agregar cuota</button>
+      <button type="button" id="btnAgregarCuota" onclick="agregarFilaCuota()" style="width:100%;padding:8px;margin-top:6px;background:transparent;border:1.5px dashed #003a79;border-radius:8px;color:#003a79;font-size:12px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-mas"/></svg> Agregar cuota</button>
       <div id="cuponeraHint" style="font-size:12px;color:#888;margin-top:6px;"></div>
     </div>
     <div class="modal-field">
@@ -640,8 +836,8 @@
       <button class="btn-cancelar" onclick="cerrarModal('modalOblig')">Cancelar</button>
       <button class="btn-confirmar" id="btnGuardarOblig" onclick="guardarObligacion()">Guardar</button>
     </div>
-    <button class="btn-eliminar hidden" id="btnArchivarOblig" onclick="archivarObligacionActual()" style="background:#fff8e1;color:#856404;">📦 Archivar (deja de generar nuevos vencimientos)</button>
-    <button class="btn-eliminar hidden" id="btnEliminarOblig" onclick="eliminarObligacion()">🗑 Eliminar esta obligación</button>
+    <button class="btn-eliminar hidden" id="btnArchivarOblig" onclick="archivarObligacionActual()" style="background:#fff8e1;color:#856404;"><svg class="ico"><use href="#i-archivar"/></svg> Archivar (deja de generar nuevos vencimientos)</button>
+    <button class="btn-eliminar hidden" id="btnEliminarOblig" onclick="eliminarObligacion()"><svg class="ico"><use href="#i-basura"/></svg> Eliminar esta obligación</button>
   </div>
 </div>
 
@@ -684,12 +880,12 @@
 <div class="modal-overlay" id="modalVerBoleta">
   <div class="modal" style="padding:0;border-radius:16px;overflow:hidden;max-height:85vh;">
     <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #eee;">
-      <span style="font-weight:700;font-size:15px;color:#222;">📷 Boleta</span>
+      <span style="font-weight:700;font-size:15px;color:#222;"><svg class="ico"><use href="#i-camara"/></svg> Boleta</span>
       <button onclick="cerrarModal('modalVerBoleta')" style="background:none;border:none;font-size:24px;color:#888;cursor:pointer;line-height:1;padding:0 4px;">×</button>
     </div>
     <iframe id="iframeBoleta" src="" style="width:100%;height:65vh;border:none;display:block;background:#f5f5f5;"></iframe>
     <div style="padding:12px 16px;text-align:center;">
-      <a id="linkAbrirBoleta" href="#" target="_blank" style="font-size:13px;color:#003a79;font-weight:600;text-decoration:none;">Abrir en una pestaña nueva ↗</a>
+      <a id="linkAbrirBoleta" href="#" target="_blank" style="font-size:13px;color:#003a79;font-weight:600;text-decoration:none;">Abrir en una pestaña nueva <svg class="ico"><use href="#i-enlace-ext"/></svg></a>
     </div>
   </div>
 </div>
@@ -711,13 +907,13 @@
 <div class="modal-overlay" id="modalAlerta" style="align-items:center;">
   <div class="modal" style="border-radius:20px;padding:28px 22px 32px;max-width:420px;margin:20px;">
     <div style="text-align:center;margin-bottom:20px;">
-      <div style="font-size:52px;line-height:1;margin-bottom:10px;">⚠️</div>
+      <div style="font-size:52px;line-height:1;margin-bottom:10px;"><svg class="ico"><use href="#i-alerta"/></svg></div>
       <div style="font-size:19px;font-weight:800;color:#c0392b;margin-bottom:6px;">¡Atención!</div>
       <div style="font-size:15px;font-weight:600;color:#333;">Tienes obligaciones próximas a vencer</div>
     </div>
     <div id="alertaModalLista"></div>
     <button onclick="cerrarModalAlerta()" style="width:100%;padding:15px;background:#003a79;border:none;border-radius:12px;font-size:16px;font-weight:700;color:white;cursor:pointer;margin-top:20px;">Entendido</button>
-    <button onclick="irAObligaciones()" style="width:100%;padding:12px;background:transparent;border:none;font-size:14px;font-weight:600;color:#003a79;cursor:pointer;margin-top:8px;">Ver todas las obligaciones →</button>
+    <button onclick="irAObligaciones()" style="width:100%;padding:12px;background:transparent;border:none;font-size:14px;font-weight:600;color:#003a79;cursor:pointer;margin-top:8px;">Ver todas las obligaciones <svg class="ico"><use href="#i-flecha-der"/></svg></button>
   </div>
 </div>
 
@@ -836,7 +1032,7 @@ function toggleHistorialCargas() {
   const icon = document.getElementById('historialCargasIcon');
   const vaAAbrir = panel.classList.contains('hidden');
   panel.classList.toggle('hidden');
-  icon.textContent = vaAAbrir ? 'Ocultar ▴' : 'Ver ▾';
+  icon.innerHTML = vaAAbrir ? 'Ocultar <svg class="ico"><use href="#i-chevron-ar"/></svg>' : 'Ver <svg class="ico"><use href="#i-chevron-ab"/></svg>';
 }
 
 async function cargarHistorialCargas() {
@@ -866,7 +1062,7 @@ async function cargarHistorialCargas() {
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
           <span style="font-size:13px;font-weight:700;color:#333;">${periodo}</span>
           <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:${completa ? '#d4edda' : '#ffe0b2'};color:${completa ? '#155724' : '#856404'};white-space:nowrap;">
-            ${completa ? '✓ COMPLETA' : `FALTAN ${faltan}`}
+            ${completa ? '<svg class="ico"><use href="#i-check"/></svg> COMPLETA' : `FALTAN ${faltan}`}
           </span>
         </div>
         <div style="font-size:11px;color:#666;margin-top:4px;">${c.total} documento(s) · ${c.importados} importado(s)</div>
@@ -876,8 +1072,8 @@ async function cargarHistorialCargas() {
           ${c.pendientes.length > 6 ? `<div style="font-size:11px;color:#888;">• ...y ${c.pendientes.length-6} más</div>` : ''}
         </div>` : ''}
         <div style="display:flex;gap:6px;margin-top:8px;">
-          ${!completa && c.url ? `<button onclick="reabrirCarga('${c.id}')" style="flex:1;padding:6px;background:#003a79;color:white;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;">↻ Reabrir carga</button>` : ''}
-          ${c.url ? `<a href="${c.url}" target="_blank" style="flex:1;padding:6px;background:white;border:1px solid #ddd;border-radius:7px;font-size:11px;font-weight:600;color:#666;text-decoration:none;text-align:center;">📎 Archivo ↗</a>` : ''}
+          ${!completa && c.url ? `<button onclick="reabrirCarga('${c.id}')" style="flex:1;padding:6px;background:#003a79;color:white;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-recargar"/></svg> Reabrir carga</button>` : ''}
+          ${c.url ? `<a href="${c.url}" target="_blank" style="flex:1;padding:6px;background:white;border:1px solid #ddd;border-radius:7px;font-size:11px;font-weight:600;color:#666;text-decoration:none;text-align:center;"><svg class="ico"><use href="#i-clip"/></svg> Archivo <svg class="ico"><use href="#i-enlace-ext"/></svg></a>` : ''}
         </div>
       </div>`;
     }).join('');
@@ -928,13 +1124,13 @@ async function procesarContenidoSII(contenido) {
 // igual que el día que se subió, con las ya importadas en gris.
 async function reabrirCarga(id) {
   const cont = document.getElementById('cargaResumen');
-  cont.innerHTML = '<div style="font-size:13px;color:#888;">⏳ Trayendo el archivo desde Drive...</div>';
+  cont.innerHTML = '<div style="font-size:13px;color:#888;"><svg class="ico ico-girar"><use href="#i-cargando"/></svg> Trayendo el archivo desde Drive...</div>';
   try {
     const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'leerArchivoCarga', id }) });
     const d = await r.json();
     if (!d.ok) { cont.innerHTML = `<div style="color:#c0392b;font-size:13px;">${d.error || 'No se pudo abrir el archivo'}</div>`; return; }
     await procesarContenidoSII(d.contenido);
-    showToast('✅ Carga reabierta');
+    showToast('<svg class="ico"><use href="#i-check-circ"/></svg> Carga reabierta');
     document.getElementById('cargaLista')?.scrollIntoView({ behavior:'smooth', block:'start' });
   } catch(e) {
     cont.innerHTML = '<div style="color:#c0392b;font-size:13px;">Error de conexión al abrir el archivo</div>';
@@ -1047,7 +1243,7 @@ async function confirmarCoincidencia(i, ci) {
     if (d.ok) {
       f.yaImportada = true;
       f.coincidencias = null;
-      showToast('✅ Documento vinculado');
+      showToast('<svg class="ico"><use href="#i-check-circ"/></svg> Documento vinculado');
       renderCargaSII();
       cargarUltimosRegistros();
       cargarHistorialCargas();
@@ -1083,17 +1279,17 @@ function renderCargaSII() {
   resumen.innerHTML = `
     <div style="background:#f0f7ff;border:1px solid #003a79;border-radius:8px;padding:10px 12px;font-size:13px;">
       <div style="font-weight:700;color:#003a79;margin-bottom:4px;">${totalDocs} documentos en el archivo</div>
-      <div style="font-size:11px;color:#888;margin-bottom:4px;">${formatoSII === 'detalle' ? '📋 Con detalle de productos' : '📄 Registro de Compras (sin detalle)'}</div>
+      <div style="font-size:11px;color:#888;margin-bottom:4px;">${formatoSII === 'detalle' ? '<svg class="ico"><use href="#i-portapapeles"/></svg> Con detalle de productos' : '<svg class="ico"><use href="#i-documento"/></svg> Registro de Compras (sin detalle)'}</div>
       ${yaImportadas ? `<div style="color:#888;">${yaImportadas} ya importado(s) — se omiten</div>` : ''}
       <div style="color:#555;"><strong>${pendientes} por importar</strong> · Total: <strong>$${Math.round(sumaTotal).toLocaleString('es-CL')}</strong></div>
       ${notasCredito ? `<div style="color:#856404;">${notasCredito} nota(s) de crédito — se restan del total</div>` : ''}
-      ${conHarina ? `<div style="color:#856404;">🌾 ${conHarina} con impuesto harina (12%)</div>` : ''}
+      ${conHarina ? `<div style="color:#856404;"><svg class="ico"><use href="#i-trigo"/></svg> ${conHarina} con impuesto harina (12%)</div>` : ''}
     </div>
     ${pendientes ? `<div style="margin-top:10px;padding:10px 12px;background:#fafafa;border-radius:8px;">
       <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:6px;">Aplicar a todas</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
-        <button type="button" onclick="aplicarEstadoTodas('pagada')" style="flex:1;min-width:110px;padding:7px;background:#f0fff4;border:1px solid #155724;border-radius:7px;font-size:12px;font-weight:600;color:#155724;cursor:pointer;">✓ Todas pagadas</button>
-        <button type="button" onclick="aplicarEstadoTodas('pendiente')" style="flex:1;min-width:110px;padding:7px;background:#fff8e1;border:1px solid #856404;border-radius:7px;font-size:12px;font-weight:600;color:#856404;cursor:pointer;">🕐 Todas pendientes</button>
+        <button type="button" onclick="aplicarEstadoTodas('pagada')" style="flex:1;min-width:110px;padding:7px;background:#f0fff4;border:1px solid #155724;border-radius:7px;font-size:12px;font-weight:600;color:#155724;cursor:pointer;"><svg class="ico"><use href="#i-check"/></svg> Todas pagadas</button>
+        <button type="button" onclick="aplicarEstadoTodas('pendiente')" style="flex:1;min-width:110px;padding:7px;background:#fff8e1;border:1px solid #856404;border-radius:7px;font-size:12px;font-weight:600;color:#856404;cursor:pointer;"><svg class="ico"><use href="#i-reloj"/></svg> Todas pendientes</button>
       </div>
       <div style="display:flex;gap:6px;align-items:center;margin-top:8px;">
         <span style="font-size:12px;color:#666;white-space:nowrap;">Fecha a todas:</span>
@@ -1101,7 +1297,7 @@ function renderCargaSII() {
         <button type="button" onclick="aplicarFechaTodas()" style="padding:6px 10px;background:#f0f4ff;border:1px solid #003a79;border-radius:6px;font-size:12px;font-weight:600;color:#003a79;cursor:pointer;white-space:nowrap;">Aplicar</button>
       </div>
     </div>
-    <button type="button" id="btnImportarSII" onclick="importarFacturasSII()" style="width:100%;padding:12px;margin-top:12px;background:#003a79;color:white;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">📥 Importar las clasificadas</button>
+    <button type="button" id="btnImportarSII" onclick="importarFacturasSII()" style="width:100%;padding:12px;margin-top:12px;background:#003a79;color:white;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;"><svg class="ico"><use href="#i-descargar"/></svg> Importar las clasificadas</button>
     <div id="importHint" style="font-size:12px;color:#888;margin-top:6px;text-align:center;"></div>` : ''}`;
 
   // Buscador: filtra qué tarjetas se muestran, sin alterar los datos ni la clasificación
@@ -1177,13 +1373,13 @@ function renderTarjetaSII(f, i) {
         </div>
         <div style="font-size:14px;font-weight:700;color:#999;white-space:nowrap;">$${Math.round(f.total).toLocaleString('es-CL')}</div>
       </div>
-      <div style="margin-top:6px;"><span style="background:#e8e8e8;color:#666;font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;">✓ YA IMPORTADA</span></div>
+      <div style="margin-top:6px;"><span style="background:#e8e8e8;color:#666;font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;"><svg class="ico"><use href="#i-check"/></svg> YA IMPORTADA</span></div>
     </div>`;
   }
 
   const etiquetas = [];
   if (f.esNotaCredito) etiquetas.push('<span style="background:#fff0f0;color:#c0392b;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;">NOTA DE CRÉDITO</span>');
-  if (f.esHarina) etiquetas.push('<span style="background:#fff8e1;color:#856404;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;">🌾 HARINA 12%</span>');
+  if (f.esHarina) etiquetas.push('<span style="background:#fff8e1;color:#856404;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;"><svg class="ico"><use href="#i-trigo"/></svg> HARINA 12%</span>');
   if (f.tipoDoc === '34') etiquetas.push('<span style="background:#eef;color:#555;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;">EXENTA</span>');
   return `<div class="card" style="padding:12px;" id="cardSII-${i}">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
@@ -1198,7 +1394,7 @@ function renderTarjetaSII(f, i) {
     </div>
     ${etiquetas.length ? `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">${etiquetas.join('')}</div>` : ''}
     ${(f.coincidencias && f.coincidencias.length) ? `<div style="margin-top:8px;background:#fffdf7;border:1px solid #e0a800;border-radius:8px;padding:10px;">
-      <div style="font-size:11px;font-weight:700;color:#856404;margin-bottom:6px;">⚠️ Posible coincidencia con un gasto ya registrado</div>
+      <div style="font-size:11px;font-weight:700;color:#856404;margin-bottom:6px;"><svg class="ico"><use href="#i-alerta"/></svg> Posible coincidencia con un gasto ya registrado</div>
       ${f.coincidencias.map((c, ci) => `<div style="background:white;border-radius:6px;padding:8px;margin-bottom:6px;border:1px solid #f0e0c0;">
         <div style="font-size:12px;font-weight:600;color:#333;">${c.items.filter(Boolean).join(' + ') || 'Sin ítem'}</div>
         <div style="font-size:11px;color:#666;margin-top:2px;">
@@ -1207,14 +1403,14 @@ function renderTarjetaSII(f, i) {
         </div>
         ${c.areas.length ? `<div style="font-size:11px;color:#666;margin-top:3px;">${c.areas.map(a => `${a.area}: $${a.monto.toLocaleString('es-CL')}`).join(' · ')}</div>` : ''}
         ${c.obs ? `<div style="font-size:10px;color:#999;margin-top:3px;">${c.obs}</div>` : ''}
-        <button type="button" onclick="confirmarCoincidencia(${i},${ci})" style="width:100%;padding:6px;margin-top:6px;background:#155724;color:white;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;">✓ Sí, este gasto ya está ingresado</button>
+        <button type="button" onclick="confirmarCoincidencia(${i},${ci})" style="width:100%;padding:6px;margin-top:6px;background:#155724;color:white;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-check"/></svg> Sí, este gasto ya está ingresado</button>
       </div>`).join('')}
       <button type="button" onclick="descartarCoincidencias(${i})" style="width:100%;padding:6px;background:white;border:1px solid #ddd;border-radius:6px;font-size:11px;font-weight:600;color:#666;cursor:pointer;">No, es una compra distinta</button>
     </div>` : ''}
 
     <div style="margin-top:10px;padding-top:10px;border-top:1px solid #f0f0f0;">
       <div id="lineasSII-${i}"></div>
-      ${(f.detalle && f.detalle.length) ? '' : `<button type="button" onclick="dividirFacturaSII(${i})" style="width:100%;padding:7px;margin-top:6px;background:transparent;border:1.5px dashed #856404;border-radius:7px;color:#856404;font-size:11px;font-weight:600;cursor:pointer;">✂️ Dividir factura (agregar otro ítem)</button>`}
+      ${(f.detalle && f.detalle.length) ? '' : `<button type="button" onclick="dividirFacturaSII(${i})" style="width:100%;padding:7px;margin-top:6px;background:transparent;border:1.5px dashed #856404;border-radius:7px;color:#856404;font-size:11px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-tijeras"/></svg> Dividir factura (agregar otro ítem)</button>`}
       <div id="totalLineasSII-${i}" style="font-size:11px;margin-top:6px;text-align:right;"></div>
 
       ${f.esNotaCredito ? `
@@ -1222,8 +1418,8 @@ function renderTarjetaSII(f, i) {
         Una nota de crédito anula o descuenta un cobro anterior: se registra como gasto negativo con la fecha del documento.
       </div>` : `
       <div style="display:flex;gap:6px;margin-top:10px;">
-        <button type="button" onclick="setEstadoSII(${i},'pagada')" id="btnPagada-${i}" style="flex:1;padding:7px;border:1px solid #ddd;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;background:white;color:#666;">✓ Pagada</button>
-        <button type="button" onclick="setEstadoSII(${i},'pendiente')" id="btnPendiente-${i}" style="flex:1;padding:7px;border:1px solid #ddd;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;background:white;color:#666;">🕐 Pendiente</button>
+        <button type="button" onclick="setEstadoSII(${i},'pagada')" id="btnPagada-${i}" style="flex:1;padding:7px;border:1px solid #ddd;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;background:white;color:#666;"><svg class="ico"><use href="#i-check"/></svg> Pagada</button>
+        <button type="button" onclick="setEstadoSII(${i},'pendiente')" id="btnPendiente-${i}" style="flex:1;padding:7px;border:1px solid #ddd;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;background:white;color:#666;"><svg class="ico"><use href="#i-reloj"/></svg> Pendiente</button>
       </div>`}
       <div id="fechaSIIWrap-${i}" class="${f.esNotaCredito ? '' : 'hidden'}" style="margin-top:8px;">
         <label id="fechaSIILabel-${i}" style="font-size:11px;color:#666;display:block;margin-bottom:3px;">${f.esNotaCredito ? 'Fecha de la nota de crédito' : ''}</label>
@@ -1329,7 +1525,7 @@ function renderDetalleAsignable(i) {
   return `<div style="margin-top:8px;background:#fafafa;border-radius:7px;padding:8px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
       <span style="font-size:11px;font-weight:700;color:#666;">Asignar productos</span>
-      ${sinAsignar ? `<span style="font-size:10px;color:#c0392b;">${sinAsignar} sin ítem</span>` : '<span style="font-size:10px;color:#155724;">✓ todos con ítem</span>'}
+      ${sinAsignar ? `<span style="font-size:10px;color:#c0392b;">${sinAsignar} sin ítem</span>` : '<span style="font-size:10px;color:#155724;"><svg class="ico"><use href="#i-check"/></svg> todos con ítem</span>'}
     </div>
     ${f.detalle.map((d, di) => {
       const itemData = ITEMS.find(it => it.item === d.item);
@@ -1378,19 +1574,19 @@ async function sugerirProrrateoSII(i, li) {
   const sug = document.getElementById(`sugerenciaSII-${i}-${li}`);
   const ln = facturasSII[i].lineas[li];
   sug.style.display = 'block';
-  sug.textContent = '⏳ Calculando...';
+  sug.innerHTML = '<svg class="ico ico-girar"><use href="#i-cargando"/></svg> Calculando...';
 
   const areasIngresadas = (ln.areas||[]).map(a => a.area).filter(Boolean);
-  if (!areasIngresadas.length) { sug.textContent = '⚠️ Elige primero las áreas'; return; }
+  if (!areasIngresadas.length) { sug.innerHTML = '<svg class="ico"><use href="#i-alerta"/></svg> Elige primero las áreas'; return; }
 
   try {
     const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getVentasPorArea', areas: areasIngresadas }) });
     const data = await r.json();
-    if (!data.ok || !data.areas?.length) { sug.textContent = '⚠️ Sin datos de ventas'; return; }
+    if (!data.ok || !data.areas?.length) { sug.innerHTML = '<svg class="ico"><use href="#i-alerta"/></svg> Sin datos de ventas'; return; }
     const ventas = {};
     data.areas.forEach(a => { if (areasIngresadas.includes(a.area)) ventas[a.area] = a.total; });
     const totalV = Object.values(ventas).reduce((s,v) => s+v, 0);
-    if (!totalV) { sug.textContent = '⚠️ Sin ventas para esas áreas'; return; }
+    if (!totalV) { sug.innerHTML = '<svg class="ico"><use href="#i-alerta"/></svg> Sin ventas para esas áreas'; return; }
 
     const pcts = areasIngresadas.map(a => ({ area: a, pct: ventas[a] ? Math.round(ventas[a]/totalV*100) : 0 }));
     const suma = pcts.reduce((s,p) => s+p.pct, 0);
@@ -1402,8 +1598,8 @@ async function sugerirProrrateoSII(i, li) {
     });
     renderLineasSII(i);
     const sug2 = document.getElementById(`sugerenciaSII-${i}-${li}`);
-    if (sug2) { sug2.style.display = 'block'; sug2.textContent = `✅ ${data.mes}: ${pcts.map(p => `${p.area} ${p.pct}%`).join(' · ')}`; }
-  } catch(e) { sug.textContent = '⚠️ Error de conexión'; }
+    if (sug2) { sug2.style.display = 'block'; sug2.innerHTML = `<svg class="ico"><use href="#i-check-circ"/></svg> ${data.mes}: ${pcts.map(p => `${p.area} ${p.pct}%`).join(' · ')}`; }
+  } catch(e) { sug.innerHTML = '<svg class="ico"><use href="#i-alerta"/></svg> Error de conexión'; }
 }
 
 function renderLineasSII(i) {
@@ -1429,7 +1625,7 @@ function renderLineasSII(i) {
           ${ln.areas.map(a => `<div style="display:flex;justify-content:space-between;font-size:11px;color:#333;padding:1px 0;">
             <span>${a.area}</span><span style="font-weight:600;">$${Math.round(a.valor).toLocaleString('es-CL')}</span>
           </div>`).join('')}
-          <div style="font-size:10px;color:#155724;margin-top:4px;">✓ calculado desde los productos</div>
+          <div style="font-size:10px;color:#155724;margin-top:4px;"><svg class="ico"><use href="#i-check"/></svg> calculado desde los productos</div>
         </div>`;
       }
 
@@ -1446,8 +1642,8 @@ function renderLineasSII(i) {
         <div id="areasFilas-${i}-${li}">
           ${(ln.areas||[]).map((a, ai) => filaAreaHTML(i, li, ai, a.area, a.valor, modo)).join('')}
         </div>
-        <button type="button" onclick="agregarAreaLinea(${i},${li})" style="width:100%;padding:6px;margin-top:4px;background:transparent;border:1.5px dashed #003a79;border-radius:7px;color:#003a79;font-size:11px;font-weight:600;cursor:pointer;">+ Agregar área</button>
-        ${modo === 'pct' ? `<button type="button" onclick="sugerirProrrateoSII(${i},${li})" style="width:100%;padding:6px;margin-top:4px;background:#e8f4fd;border:1px solid #2980b9;border-radius:7px;color:#2980b9;font-size:11px;font-weight:600;cursor:pointer;">💡 Sugerir % según ventas del mes anterior</button>` : ''}
+        <button type="button" onclick="agregarAreaLinea(${i},${li})" style="width:100%;padding:6px;margin-top:4px;background:transparent;border:1.5px dashed #003a79;border-radius:7px;color:#003a79;font-size:11px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-mas"/></svg> Agregar área</button>
+        ${modo === 'pct' ? `<button type="button" onclick="sugerirProrrateoSII(${i},${li})" style="width:100%;padding:6px;margin-top:4px;background:#e8f4fd;border:1px solid #2980b9;border-radius:7px;color:#2980b9;font-size:11px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-ampolleta"/></svg> Sugerir % según ventas del mes anterior</button>` : ''}
         <div id="sugerenciaSII-${i}-${li}" style="display:none;font-size:11px;color:#2980b9;margin-top:4px;padding:5px 8px;background:#e8f4fd;border-radius:6px;"></div>
         <div id="areasHint-${i}-${li}" style="font-size:11px;margin-top:4px;"></div>
       </div>`;
@@ -1498,8 +1694,8 @@ function renderLineasSII(i) {
         <div id="areasFilas-${i}-${li}">
           ${(ln.areas||[]).map((a, ai) => filaAreaHTML(i, li, ai, a.area, a.valor, modo)).join('')}
         </div>
-        <button type="button" onclick="agregarAreaLinea(${i},${li})" style="width:100%;padding:6px;margin-top:4px;background:transparent;border:1.5px dashed #003a79;border-radius:7px;color:#003a79;font-size:11px;font-weight:600;cursor:pointer;">+ Agregar área</button>
-        ${modo === 'pct' ? `<button type="button" onclick="sugerirProrrateoSII(${i},${li})" style="width:100%;padding:6px;margin-top:4px;background:#e8f4fd;border:1px solid #2980b9;border-radius:7px;color:#2980b9;font-size:11px;font-weight:600;cursor:pointer;">💡 Sugerir % según ventas del mes anterior</button>` : ''}
+        <button type="button" onclick="agregarAreaLinea(${i},${li})" style="width:100%;padding:6px;margin-top:4px;background:transparent;border:1.5px dashed #003a79;border-radius:7px;color:#003a79;font-size:11px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-mas"/></svg> Agregar área</button>
+        ${modo === 'pct' ? `<button type="button" onclick="sugerirProrrateoSII(${i},${li})" style="width:100%;padding:6px;margin-top:4px;background:#e8f4fd;border:1px solid #2980b9;border-radius:7px;color:#2980b9;font-size:11px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-ampolleta"/></svg> Sugerir % según ventas del mes anterior</button>` : ''}
         <div id="sugerenciaSII-${i}-${li}" style="display:none;font-size:11px;color:#2980b9;margin-top:4px;padding:5px 8px;background:#e8f4fd;border-radius:6px;"></div>
         <div id="areasHint-${i}-${li}" style="font-size:11px;margin-top:4px;"></div>
       </div>` : ''}
@@ -1601,12 +1797,12 @@ function recalcularAreasLinea(i, li) {
 
   if (modo === 'pct') {
     const ok = Math.abs(suma - 100) < 0.01;
-    hint.textContent = ok ? '✓ 100% repartido' : `Suma: ${suma}% (debe ser 100%)`;
+    hint.innerHTML = ok ? '<svg class="ico"><use href="#i-check"/></svg> 100% repartido' : `Suma: ${suma}% (debe ser 100%)`;
     hint.style.color = ok ? '#155724' : '#c0392b';
   } else {
     const dif = base - suma;
     const ok = Math.abs(dif) < 1;
-    hint.textContent = ok ? '✓ Cuadra' : `Suma $${Math.round(suma).toLocaleString('es-CL')} — ${dif > 0 ? 'faltan' : 'sobran'} $${Math.round(Math.abs(dif)).toLocaleString('es-CL')}`;
+    hint.innerHTML = ok ? '<svg class="ico"><use href="#i-check"/></svg> Cuadra' : `Suma $${Math.round(suma).toLocaleString('es-CL')} — ${dif > 0 ? 'faltan' : 'sobran'} $${Math.round(Math.abs(dif)).toLocaleString('es-CL')}`;
     hint.style.color = ok ? '#155724' : '#c0392b';
   }
 }
@@ -1622,7 +1818,7 @@ function actualizarTotalLineas(i) {
   const dif = total - suma;
   const ok = Math.abs(dif) < 1;
   el.textContent = ok
-    ? `✓ Los ítems suman el total ($${Math.round(total).toLocaleString('es-CL')})`
+    ? `<svg class="ico"><use href="#i-check"/></svg> Los ítems suman el total ($${Math.round(total).toLocaleString('es-CL')})`
     : `Ítems suman $${Math.round(suma).toLocaleString('es-CL')} de $${Math.round(total).toLocaleString('es-CL')} — ${dif > 0 ? 'faltan' : 'sobran'} $${Math.round(Math.abs(dif)).toLocaleString('es-CL')}`;
   el.style.color = ok ? '#155724' : '#c0392b';
 }
@@ -1771,7 +1967,7 @@ async function importarFacturasSII(omitirRepetidas) {
   if (!omitirRepetidas && !confirm(`¿Importar ${listas.length} factura(s) al registro de gastos?`)) return;
 
   const btn = document.getElementById('btnImportarSII');
-  btn.disabled = true; btn.textContent = '⏳ Importando...';
+  btn.disabled = true; btn.innerHTML = '<svg class="ico ico-girar"><use href="#i-cargando"/></svg> Importando...';
   hint.textContent = '';
 
   try {
@@ -1780,9 +1976,9 @@ async function importarFacturasSII(omitirRepetidas) {
 
     // El backend encontró documentos ya importados y no guardó nada: decide el usuario
     if (d.duplicados) {
-      btn.disabled = false; btn.textContent = '📥 Importar las clasificadas';
+      btn.disabled = false; btn.innerHTML = '<svg class="ico"><use href="#i-descargar"/></svg> Importar las clasificadas';
       hint.innerHTML = `<div style="text-align:left;color:#856404;background:#fff8e1;padding:10px;border-radius:8px;border:1px solid #e0a800;">
-        <strong>⚠️ No se guardó nada todavía.</strong><br>
+        <strong><svg class="ico"><use href="#i-alerta"/></svg> No se guardó nada todavía.</strong><br>
         ${d.duplicados.length} documento(s) ya estaban importados:<br>
         ${d.duplicados.slice(0,5).map(x => `• ${x.razonSocial} F.${x.folio}`).join('<br>')}
         ${d.duplicados.length > 5 ? `<br>• ...y ${d.duplicados.length-5} más` : ''}
@@ -1795,8 +1991,8 @@ async function importarFacturasSII(omitirRepetidas) {
     }
 
     if (d.ok) {
-      showToast(`✅ ${d.filas} registro(s) importados`);
-      hint.innerHTML = `<span style="color:#155724;">✓ Importado: ${d.filas} línea(s) de gasto${d.vencimientos ? ` · ${d.vencimientos} obligación(es)` : ''}${d.detalle ? ` · ${d.detalle} producto(s) en Detalle Compras` : ''}</span>`;
+      showToast(`<svg class="ico"><use href="#i-check-circ"/></svg> ${d.filas} registro(s) importados`);
+      hint.innerHTML = `<span style="color:#155724;"><svg class="ico"><use href="#i-check"/></svg> Importado: ${d.filas} línea(s) de gasto${d.vencimientos ? ` · ${d.vencimientos} obligación(es)` : ''}${d.detalle ? ` · ${d.detalle} producto(s) en Detalle Compras` : ''}</span>`;
       // Marcar como importadas para que no se repitan en esta misma sesión
       listas.forEach(l => {
         const f = facturasSII.find(x => x.rut === l.rut && x.folio === l.folio);
@@ -1806,11 +2002,11 @@ async function importarFacturasSII(omitirRepetidas) {
       cargarUltimosRegistros();
       cargarHistorialCargas();
     } else {
-      btn.disabled = false; btn.textContent = '📥 Importar las clasificadas';
+      btn.disabled = false; btn.innerHTML = '<svg class="ico"><use href="#i-descargar"/></svg> Importar las clasificadas';
       hint.innerHTML = `<span style="color:#c0392b;">Error: ${d.error || 'no se pudo importar'}</span>`;
     }
   } catch(e) {
-    btn.disabled = false; btn.textContent = '📥 Importar las clasificadas';
+    btn.disabled = false; btn.innerHTML = '<svg class="ico"><use href="#i-descargar"/></svg> Importar las clasificadas';
     hint.innerHTML = '<span style="color:#c0392b;">Error de conexión</span>';
   }
 }
@@ -1874,7 +2070,7 @@ async function cargarItems() {
 let toastTimer = null;
 function showToast(msg, tipo='success') {
   const t = document.getElementById('toast');
-  t.textContent = msg;
+  t.innerHTML = msg;
   t.style.background = tipo === 'success' ? '#27ae60' : '#e74c3c';
   t.classList.add('show');
   if (toastTimer) clearTimeout(toastTimer);
@@ -1887,10 +2083,10 @@ async function btnAction(btnId, loadingText, successText, accion) {
   if (!btn) return accion();
   const original = btn.innerHTML;
   btn.disabled = true;
-  btn.innerHTML = `⏳ ${loadingText}`;
+  btn.innerHTML = `<svg class="ico ico-girar"><use href="#i-cargando"/></svg> ${loadingText}`;
   try {
     const result = await accion();
-    btn.innerHTML = `✅ ${successText}`;
+    btn.innerHTML = `<svg class="ico"><use href="#i-check-circ"/></svg> ${successText}`;
     btn.style.background = '#27ae60';
     btn.style.color = 'white';
     await new Promise(r => setTimeout(r, 3000));
@@ -1912,8 +2108,8 @@ function renderItems() {
   lista.innerHTML = '<div class="table-wrap"><table><thead><tr><th></th><th>Ítem</th><th>Categoría</th><th>Tipo</th><th>Área</th></tr></thead><tbody>' +
     ITEMS.map((i, idx) => `<tr>
       <td style="white-space:nowrap;padding:2px 4px;" onclick="event.stopPropagation()">
-        <button onclick="moverItem('${i.item.replace(/'/g,"\\'")}','arriba')" ${idx===0 ? 'disabled style="opacity:0.25;"' : ''} style="border:none;background:none;font-size:15px;cursor:pointer;padding:2px 4px;color:#003a79;">▲</button>
-        <button onclick="moverItem('${i.item.replace(/'/g,"\\'")}','abajo')" ${idx===ITEMS.length-1 ? 'disabled style="opacity:0.25;"' : ''} style="border:none;background:none;font-size:15px;cursor:pointer;padding:2px 4px;color:#003a79;">▼</button>
+        <button onclick="moverItem('${i.item.replace(/'/g,"\\'")}','arriba')" ${idx===0 ? 'disabled style="opacity:0.25;"' : ''} style="border:none;background:none;font-size:15px;cursor:pointer;padding:2px 4px;color:#003a79;"><svg class="ico"><use href="#i-chevron-ar"/></svg></button>
+        <button onclick="moverItem('${i.item.replace(/'/g,"\\'")}','abajo')" ${idx===ITEMS.length-1 ? 'disabled style="opacity:0.25;"' : ''} style="border:none;background:none;font-size:15px;cursor:pointer;padding:2px 4px;color:#003a79;"><svg class="ico"><use href="#i-chevron-ab"/></svg></button>
       </td>
       <td onclick="abrirModalItem('${i.item.replace(/'/g,"\\'")}')" style="cursor:pointer;"><strong>${i.item}</strong><br><small style="color:#888">${i.subTipo}</small></td>
       <td onclick="abrirModalItem('${i.item.replace(/'/g,"\\'")}')" style="cursor:pointer;">${i.categoria}</td>
@@ -1987,12 +2183,12 @@ function selFormaPago(tipo) {
     const anioS = hoyD.getMonth() + 2 > 12 ? hoyD.getFullYear() + 1 : hoyD.getFullYear();
     const fechaAuto = `${anioS}-${String(mesS).padStart(2,'0')}-20`;
     inputFecha.value = fechaAuto;
-    hint.textContent = '📅 Fecha automática: día 20 del mes siguiente';
+    hint.innerHTML = '<svg class="ico"><use href="#i-calendario"/></svg> Fecha automática: día 20 del mes siguiente';
     hint.style.color = '#2980b9';
   } else if (tipo === 'proveedor') {
     cardFecha.classList.remove('hidden');
     inputFecha.value = '';
-    hint.textContent = '📅 Ingresa la fecha acordada con el proveedor';
+    hint.innerHTML = '<svg class="ico"><use href="#i-calendario"/></svg> Ingresa la fecha acordada con el proveedor';
     hint.style.color = '#888';
   } else {
     cardFecha.classList.add('hidden');
@@ -2034,7 +2230,7 @@ function agregarSeccionItem() {
       <option value="">— Selecciona un ítem —</option>
       ${itemsParaRegistrar().map(i=>`<option value="${i.item}">${i.item}</option>`).join('')}
     </select>
-    <div style="font-size:11px;color:#aaa;margin-bottom:8px;">Arriendo, luz, IVA y demás obligaciones recurrentes se pagan desde la pestaña 📅 Obligaciones.</div>
+    <div style="font-size:11px;color:#aaa;margin-bottom:8px;">Arriendo, luz, IVA y demás obligaciones recurrentes se pagan desde la pestaña <svg class="ico"><use href="#i-calendario"/></svg> Obligaciones.</div>
     <div id="infoGrid-${id}" style="display:none;" class="info-grid">
       <div class="info-item"><div class="info-label">Categoría</div><div class="info-value" id="infoCat-${id}">—</div></div>
       <div class="info-item"><div class="info-label">Tipo</div><div class="info-value" id="infoTipo-${id}">—</div></div>
@@ -2054,14 +2250,14 @@ function agregarSeccionItem() {
       <label style="font-size:12px;font-weight:600;color:#444;margin-bottom:2px;display:block;">Distribución por área <span style="font-weight:400;color:#aaa;">(monto en $)</span></label>
       <div id="labelSelArea-${id}" style="font-size:11px;font-weight:700;color:#e67e22;margin-bottom:6px;"></div>
       <div id="selAreaFilas-${id}"></div>
-      <button type="button" onclick="agregarFilaAreaSec(${id})" style="width:100%;padding:8px;margin-top:6px;background:transparent;border:1.5px dashed #003a79;border-radius:8px;color:#003a79;font-size:12px;font-weight:600;cursor:pointer;">+ Agregar área</button>
+      <button type="button" onclick="agregarFilaAreaSec(${id})" style="width:100%;padding:8px;margin-top:6px;background:transparent;border:1.5px dashed #003a79;border-radius:8px;color:#003a79;font-size:12px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-mas"/></svg> Agregar área</button>
       <div id="selAreaHint-${id}" style="font-size:12px;color:#003a79;margin-top:4px;"></div>
     </div>
     <!-- Prorrateo -->
     <div id="prorrateo-${id}" style="display:none;margin-top:10px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <label style="font-size:12px;font-weight:600;color:#444;margin:0;">Distribución por área (%)</label>
-        <button type="button" onclick="sugerirProrrateoSec(${id})" style="font-size:11px;padding:4px 8px;background:#e8f0fe;color:#003a79;border:1px solid #003a79;border-radius:6px;font-weight:600;cursor:pointer;">✨ Sugerir</button>
+        <button type="button" onclick="sugerirProrrateoSec(${id})" style="font-size:11px;padding:4px 8px;background:#e8f0fe;color:#003a79;border:1px solid #003a79;border-radius:6px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-chispas"/></svg> Sugerir</button>
       </div>
       <div id="sugerenciaSec-${id}" style="display:none;font-size:12px;color:#2980b9;margin-bottom:6px;padding:5px 8px;background:#e8f4fd;border-radius:6px;"></div>
       <div class="prorrateo-row"><select id="pArea1-${id}"><option value="">— Área 1 —</option>${AREAS_OPCIONES.map(a=>`<option>${a}</option>`).join('')}</select><input type="number" id="pPct1-${id}" placeholder="%" min="1" max="100" oninput="validarProrrateoSec(${id})"/></div>
@@ -2153,7 +2349,7 @@ function acumuladorHtml(targetId) {
   const tempId = `${targetId}-suma`;
   return `<div style="display:flex;gap:6px;margin-top:6px;align-items:center;">
     <input type="number" id="${tempId}" placeholder="Sumar otro monto..." style="flex:1;min-width:0;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;" onkeydown="if(event.key==='Enter'){event.preventDefault();sumarMonto('${targetId}','${tempId}');}"/>
-    <button type="button" onclick="sumarMonto('${targetId}','${tempId}')" style="padding:8px 12px;background:#e8f0fe;color:#003a79;border:1px solid #003a79;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">+ Sumar</button>
+    <button type="button" onclick="sumarMonto('${targetId}','${tempId}')" style="padding:8px 12px;background:#e8f0fe;color:#003a79;border:1px solid #003a79;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;"><svg class="ico"><use href="#i-mas"/></svg> Sumar</button>
   </div>`;
 }
 
@@ -2204,7 +2400,7 @@ function validarProrrateoSec(id) {
   const suma = p1+p2+(a3?p3:0);
   const hint = document.getElementById(`prorrateoHint-${id}`);
   if (hint) {
-    if (suma===100) { hint.textContent='✓ Suma 100%'; hint.style.color='#27ae60'; }
+    if (suma===100) { hint.innerHTML='<svg class="ico"><use href="#i-check"/></svg> Suma 100%'; hint.style.color='#27ae60'; }
     else { hint.textContent=`Suma ${suma}%, debe ser 100%`; hint.style.color='#e74c3c'; }
   }
   recalcularTotal();
@@ -2212,29 +2408,29 @@ function validarProrrateoSec(id) {
 
 async function sugerirProrrateoSec(id) {
   const sug = document.getElementById(`sugerenciaSec-${id}`);
-  sug.style.display='block'; sug.textContent='⏳ Calculando...';
+  sug.style.display='block'; sug.innerHTML='<svg class="ico ico-girar"><use href="#i-cargando"/></svg> Calculando...';
   const a1=document.getElementById(`pArea1-${id}`)?.value;
   const a2=document.getElementById(`pArea2-${id}`)?.value;
   const a3=document.getElementById(`pArea3-${id}`)?.value;
   const areasIngresadas=[a1,a2,a3].filter(a=>a);
-  if (!areasIngresadas.length){sug.textContent='⚠️ Ingresa al menos un área primero';return;}
+  if (!areasIngresadas.length){sug.innerHTML='<svg class="ico"><use href="#i-alerta"/></svg> Ingresa al menos un área primero';return;}
   try {
     const r=await fetch(BACKEND_URL,{method:'POST',body:JSON.stringify({action:'getVentasPorArea',areas:areasIngresadas})});
     const data=await r.json();
-    if(!data.ok||!data.areas?.length){sug.textContent='⚠️ Sin datos de ventas';return;}
+    if(!data.ok||!data.areas?.length){sug.innerHTML='<svg class="ico"><use href="#i-alerta"/></svg> Sin datos de ventas';return;}
     const ventasAreas={};
     data.areas.forEach(a=>{if(areasIngresadas.includes(a.area))ventasAreas[a.area]=a.total;});
     const totalF=Object.values(ventasAreas).reduce((s,v)=>s+v,0);
-    if(!totalF){sug.textContent='⚠️ Sin ventas para esas áreas';return;}
+    if(!totalF){sug.innerHTML='<svg class="ico"><use href="#i-alerta"/></svg> Sin ventas para esas áreas';return;}
     const pcts=areasIngresadas.map(a=>({area:a,pct:ventasAreas[a]?Math.round(ventasAreas[a]/totalF*100):0}));
     const suma=pcts.reduce((s,p)=>s+p.pct,0);
     if(suma!==100&&pcts.length)pcts[0].pct+=(100-suma);
     if(pcts[0])document.getElementById(`pPct1-${id}`).value=pcts[0].pct;
     if(pcts[1])document.getElementById(`pPct2-${id}`).value=pcts[1].pct;
     if(pcts[2])document.getElementById(`pPct3-${id}`).value=pcts[2].pct;
-    sug.textContent=`✅ ${data.mes}: ${pcts.map(p=>`${p.area} ${p.pct}%`).join(' · ')}`;
+    sug.innerHTML=`<svg class="ico"><use href="#i-check-circ"/></svg> ${data.mes}: ${pcts.map(p=>`${p.area} ${p.pct}%`).join(' · ')}`;
     validarProrrateoSec(id);
-  } catch(e){sug.textContent='⚠️ Error de conexión';}
+  } catch(e){sug.innerHTML='<svg class="ico"><use href="#i-alerta"/></svg> Error de conexión';}
 }
 
 function getSeccionData(id) {
@@ -2319,7 +2515,7 @@ function recalcularTotal() {
       if (tipoMonto !== 'siniva') {
         html += `<div style="display:flex;justify-content:space-between;font-size:12px;color:#555;padding:2px 0;"><span>IVA (19%)</span><span>$${totalIva19.toLocaleString('es-CL')}</span></div>`;
         if (totalAdicionalHarina > 0) {
-          html += `<div style="display:flex;justify-content:space-between;font-size:12px;color:#856404;padding:2px 0;"><span>🌾 Impuesto adicional harina (12%)</span><span>$${totalAdicionalHarina.toLocaleString('es-CL')}</span></div>`;
+          html += `<div style="display:flex;justify-content:space-between;font-size:12px;color:#856404;padding:2px 0;"><span><svg class="ico"><use href="#i-trigo"/></svg> Impuesto adicional harina (12%)</span><span>$${totalAdicionalHarina.toLocaleString('es-CL')}</span></div>`;
         }
       }
       detalle.innerHTML = html;
@@ -2387,7 +2583,7 @@ function handleFileSelect(file) {
     previewImg.src = ev.target.result; previewImg.style.display = 'block';
     uploadZone.classList.add('has-file');
     uploadText.textContent = file.name.length > 28 ? file.name.substring(0,25)+'...' : file.name;
-    document.getElementById('uploadIcon').textContent = '🖼️';
+    document.getElementById('uploadIcon').innerHTML = '<svg class="ico"><use href="#i-imagen"/></svg>';
     document.getElementById('uploadBtns').style.display = 'none';
   };
   reader.readAsDataURL(file);
@@ -2443,7 +2639,7 @@ btnSubmit.addEventListener('click', async () => {
 
   if (!itemsData.length) { alert('Agrega al menos un ítem'); return; }
 
-  btnSubmit.disabled = true; btnSubmit.innerHTML = '⏳ Enviando...';
+  btnSubmit.disabled = true; btnSubmit.innerHTML = '<svg class="ico ico-girar"><use href="#i-cargando"/></svg> Enviando...';
   try {
     const base64 = await fileToBase64(selectedFile);
     const montoTotal = itemsData.reduce((s,d) => s+d.montoTotal, 0);
@@ -2462,10 +2658,10 @@ btnSubmit.addEventListener('click', async () => {
       records.push({ item: itemsData.map(d=>d.item).join(', '), area: '', thumb: previewImg.src, date: dateStr, time: timeStr, monto: String(montoTotal) });
       registrosMostrados = 3;
       await cargarUltimosRegistros();
-      showToast('✅ Gasto registrado correctamente');
+      showToast('<svg class="ico"><use href="#i-check-circ"/></svg> Gasto registrado correctamente');
       renderRecords(); formSection.style.display = 'none'; successScreen.style.display = 'block';
-    } else { alert('Error al guardar: ' + (result.message || 'Error desconocido')); btnSubmit.disabled = false; btnSubmit.innerHTML = '✓ Registrar gasto'; }
-  } catch(err) { alert('Error de conexión. Revisa tu internet e intenta de nuevo.'); btnSubmit.disabled = false; btnSubmit.innerHTML = '✓ Registrar gasto'; }
+    } else { alert('Error al guardar: ' + (result.message || 'Error desconocido')); btnSubmit.disabled = false; btnSubmit.innerHTML = '<svg class="ico"><use href="#i-check"/></svg> Registrar gasto'; }
+  } catch(err) { alert('Error de conexión. Revisa tu internet e intenta de nuevo.'); btnSubmit.disabled = false; btnSubmit.innerHTML = '<svg class="ico"><use href="#i-check"/></svg> Registrar gasto'; }
 });
 
 function fileToBase64(file) {
@@ -2491,12 +2687,12 @@ function resetFormulario() {
   document.getElementById('observacion').value = '';
   uploadZone.classList.remove('has-file');
   uploadText.textContent = 'Selecciona una opción';
-  document.getElementById('uploadIcon').textContent = '📷';
+  document.getElementById('uploadIcon').innerHTML = '<svg class="ico"><use href="#i-camara"/></svg>';
   document.getElementById('uploadBtns').style.display = 'grid';
   previewImg.style.display = 'none'; previewImg.src = '';
   document.getElementById('fileInputCam').value = '';
   document.getElementById('fileInputGal').value = '';
-  btnSubmit.disabled = true; btnSubmit.innerHTML = '✓ Registrar gasto';
+  btnSubmit.disabled = true; btnSubmit.innerHTML = '<svg class="ico"><use href="#i-check"/></svg> Registrar gasto';
   // Agregar primera sección con ítems ya cargados
   if (ITEMS.length) agregarSeccionItem();
 }
@@ -2588,11 +2784,11 @@ function renderRecords() {
     const esCredito = r.formaPago === 'tarjeta' || r.formaPago === 'proveedor';
     let badge = null;
     if (esCredito) {
-      if (r.fechaPago) badge = { txt: '✓ Pagado', bg: '#d4edda', color: '#155724' };
-      else if (r.estadoObligacion === 'VENCIDA') badge = { txt: '🔴 Vencida', bg: '#fff0f0', color: '#c0392b' };
-      else badge = { txt: '🟠 Pendiente de pago', bg: '#fff8e1', color: '#856404' };
+      if (r.fechaPago) badge = { txt: '<svg class="ico"><use href="#i-check"/></svg> Pagado', bg: '#d4edda', color: '#155724' };
+      else if (r.estadoObligacion === 'VENCIDA') badge = { txt: '<svg class="ico"><use href="#i-alerta-circ"/></svg> Vencida', bg: '#fff0f0', color: '#c0392b' };
+      else badge = { txt: '<svg class="ico"><use href="#i-reloj"/></svg> Pendiente de pago', bg: '#fff8e1', color: '#856404' };
     } else if (fila) {
-      badge = { txt: '✓ Pagado', bg: '#d4edda', color: '#155724' };
+      badge = { txt: '<svg class="ico"><use href="#i-check"/></svg> Pagado', bg: '#d4edda', color: '#155724' };
     }
     const badgeHtml = badge ? `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:${badge.bg};color:${badge.color};white-space:nowrap;">${badge.txt}</span>` : '';
     const vencStr = (esCredito && r.fechaVencimiento && !r.fechaPago) ? ` · Vence: ${fmtFecha(r.fechaVencimiento)}` : '';
@@ -2600,7 +2796,7 @@ function renderRecords() {
 
     return `<div class="record-item" style="flex-direction:column;align-items:stretch;gap:8px;">
       <div style="display:flex;align-items:center;gap:12px;">
-        ${r.thumb ? `<img class="record-thumb" src="${r.thumb}" alt="boleta"/>` : `<div style="width:40px;height:40px;border-radius:6px;background:#f0f4ff;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🧾</div>`}
+        ${r.thumb ? `<img class="record-thumb" src="${r.thumb}" alt="boleta"/>` : `<div style="width:40px;height:40px;border-radius:6px;background:#f0f4ff;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;"><svg class="ico"><use href="#i-recibo"/></svg></div>`}
         <div class="record-info" style="flex:1;min-width:0;">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
             <div class="record-name">${r.item || ''}</div>
@@ -2610,10 +2806,10 @@ function renderRecords() {
         </div>
       </div>
       ${fila ? `<div style="display:flex;gap:8px;">
-        ${r.tieneDetalle ? `<button onclick="verDetalleDocumento('${r.rutProveedor}','${r.folio}')" style="flex:1;padding:6px;background:#f0f7ff;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#003a79;cursor:pointer;">📋 Ver detalle</button>` : ''}
-        ${r.urlFoto ? `<button onclick="verBoleta('${r.urlFoto}')" style="flex:1;padding:6px;background:#fff8e1;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#856404;cursor:pointer;">📷 Ver boleta</button>` : ''}
-        <button onclick="abrirEditarGasto(${fila})" style="flex:1;padding:6px;background:#f0f4ff;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#003a79;cursor:pointer;">✏️ Editar</button>
-        <button onclick="eliminarGasto(${fila})" style="flex:1;padding:6px;background:#fff0f0;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#c0392b;cursor:pointer;">🗑 Eliminar</button>
+        ${r.tieneDetalle ? `<button onclick="verDetalleDocumento('${r.rutProveedor}','${r.folio}')" style="flex:1;padding:6px;background:#f0f7ff;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#003a79;cursor:pointer;"><svg class="ico"><use href="#i-portapapeles"/></svg> Ver detalle</button>` : ''}
+        ${r.urlFoto ? `<button onclick="verBoleta('${r.urlFoto}')" style="flex:1;padding:6px;background:#fff8e1;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#856404;cursor:pointer;"><svg class="ico"><use href="#i-camara"/></svg> Ver boleta</button>` : ''}
+        <button onclick="abrirEditarGasto(${fila})" style="flex:1;padding:6px;background:#f0f4ff;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#003a79;cursor:pointer;"><svg class="ico"><use href="#i-lapiz"/></svg> Editar</button>
+        <button onclick="eliminarGasto(${fila})" style="flex:1;padding:6px;background:#fff0f0;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#c0392b;cursor:pointer;"><svg class="ico"><use href="#i-basura"/></svg> Eliminar</button>
       </div>` : ''}
     </div>`;
   }).join('');
@@ -2646,7 +2842,7 @@ function handlePagoFile(file) {
     document.getElementById('pagoPreviewImg').style.display = 'block';
     document.getElementById('pagoUploadZone').classList.add('has-file');
     document.getElementById('pagoUploadText').textContent = file.name.length > 28 ? file.name.substring(0,25)+'...' : file.name;
-    document.getElementById('pagoUploadIcon').textContent = '🖼️';
+    document.getElementById('pagoUploadIcon').innerHTML = '<svg class="ico"><use href="#i-imagen"/></svg>';
     document.getElementById('pagoUploadBtns').style.display = 'none';
   };
   reader.readAsDataURL(file);
@@ -2687,7 +2883,7 @@ function renderPanoramaMes() {
   const mesKey = `${anioActual}-${String(mesActual+1).padStart(2,'0')}`;
 
   const tituloEl = document.getElementById('panoramaMesTitulo');
-  if (tituloEl) tituloEl.textContent = `📅 Panorama de ${MESES_LARGO[mesActual]}`;
+  if (tituloEl) tituloEl.innerHTML = `<svg class="ico"><use href="#i-calendario"/></svg> Panorama de ${MESES_LARGO[mesActual]}`;
 
   // 1) Vencimientos REALES que caen dentro del mes en curso. Esto cubre las cuponeras,
   //    que tienen varias cuotas propias y no se pueden representar con una sola
@@ -2785,16 +2981,16 @@ function renderObligaciones() {
 
   lista.innerHTML = ordenadas.map(v => {
     const est = badgeVisual(v);
-    const badgeLabel = est === 'vencida' ? '🔴 VENCIDA' : est === 'proximo' ? '⚠️ HOY/MAÑANA' : est === 'pagado' ? '✓ PAGADO' : 'PENDIENTE';
+    const badgeLabel = est === 'vencida' ? '<svg class="ico"><use href="#i-alerta-circ"/></svg> VENCIDA' : est === 'proximo' ? '<svg class="ico"><use href="#i-alerta"/></svg> HOY/MAÑANA' : est === 'pagado' ? '<svg class="ico"><use href="#i-check"/></svg> PAGADO' : 'PENDIENTE';
     const montoStr = v.montoEstimado && !isNaN(parseInt(v.montoEstimado)) ? ' · $'+parseInt(v.montoEstimado).toLocaleString('es-CL') : '';
     const fechaStr = v.fecha ? ` · Vence: ${fmtFecha(v.fecha)}` : '';
     const pagoStr = v.fechaPago ? ` · Pagado: ${fmtFecha(v.fechaPago)}` : '';
     const esVencida = est === 'vencida';
     // "Eliminar" solo se ofrece si AÚN NO está pagado — una vez pagado, borrar la fila
     // de Vencimientos es definitivo (no hay papelera), así que se protege desde la UI.
-    const btnEditar = v.plantillaId ? `<button onclick="abrirModalObligacion('${v.plantillaId}')" style="flex:1;padding:7px;background:#f0f4ff;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#003a79;cursor:pointer;">✏️ Editar regla</button>` : '';
-    const btnVerFoto = v.urlComprobante ? `<button onclick="verBoleta('${v.urlComprobante}')" style="flex:1;padding:7px;background:#fff8e1;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#856404;cursor:pointer;">📷 Ver foto</button>` : '';
-    const btnEliminar = v.estado !== 'PAGADO' ? `<button onclick="confirmarEliminarVencimiento('${v.id}','${v.nombre.replace(/'/g,"\\'")}')" style="flex:1;padding:7px;background:#fff0f0;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#c0392b;cursor:pointer;">🗑 Eliminar</button>` : '';
+    const btnEditar = v.plantillaId ? `<button onclick="abrirModalObligacion('${v.plantillaId}')" style="flex:1;padding:7px;background:#f0f4ff;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#003a79;cursor:pointer;"><svg class="ico"><use href="#i-lapiz"/></svg> Editar regla</button>` : '';
+    const btnVerFoto = v.urlComprobante ? `<button onclick="verBoleta('${v.urlComprobante}')" style="flex:1;padding:7px;background:#fff8e1;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#856404;cursor:pointer;"><svg class="ico"><use href="#i-camara"/></svg> Ver foto</button>` : '';
+    const btnEliminar = v.estado !== 'PAGADO' ? `<button onclick="confirmarEliminarVencimiento('${v.id}','${v.nombre.replace(/'/g,"\\'")}')" style="flex:1;padding:7px;background:#fff0f0;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#c0392b;cursor:pointer;"><svg class="ico"><use href="#i-basura"/></svg> Eliminar</button>` : '';
     const accionesHtml = (btnEditar || btnVerFoto || btnEliminar) ? `<div style="display:flex;gap:8px;margin-top:10px;border-top:1px solid #f0f0f0;padding-top:8px;">${btnEditar}${btnVerFoto}${btnEliminar}</div>` : '';
     return `<div class="oblig-item ${esVencida ? 'alerta' : est === 'proximo' ? 'alerta' : est === 'pagado' ? 'pagado' : ''}" style="${esVencida ? 'border-left-color:#c0392b;background:#fff5f5;' : ''}">
       <div class="oblig-header" onclick="clickVencimiento('${v.id}')" style="cursor:pointer;">
@@ -2822,7 +3018,7 @@ function toggleHistorialPagos() {
   const icon = document.getElementById('historialToggleIcon');
   const vaAAbrir = panel.classList.contains('hidden');
   panel.classList.toggle('hidden');
-  icon.textContent = vaAAbrir ? 'Ocultar ▴' : 'Ver ▾';
+  icon.innerHTML = vaAAbrir ? 'Ocultar <svg class="ico"><use href="#i-chevron-ar"/></svg>' : 'Ver <svg class="ico"><use href="#i-chevron-ab"/></svg>';
   if (vaAAbrir && !historialInicializado) {
     historialInicializado = true;
     initSelectorHistorial();
@@ -2873,7 +3069,7 @@ async function pedirHistorial(filtro) {
       const monto = v.montoPago && !isNaN(parseInt(v.montoPago)) ? '$'+parseInt(v.montoPago).toLocaleString('es-CL') : '';
       const areaStr = (v.area && v.area !== 'MULTI' && v.area !== 'PRORRATEADO') ? ' · '+v.area : '';
       return `<div class="record-item">
-        <div style="width:36px;height:36px;border-radius:6px;background:#f0fff4;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">✓</div>
+        <div style="width:36px;height:36px;border-radius:6px;background:#f0fff4;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;"><svg class="ico"><use href="#i-check"/></svg></div>
         <div class="record-info">
           <div class="record-name">${v.nombre}</div>
           <div class="record-date">${fmtFecha(v.fechaPago)}${monto ? ' · '+monto : ''}${areaStr}</div>
@@ -2893,7 +3089,7 @@ function toggleGestionPlantillas() {
   const icon = document.getElementById('gestionToggleIcon');
   const vaAAbrir = panel.classList.contains('hidden');
   panel.classList.toggle('hidden');
-  icon.textContent = vaAAbrir ? 'Ocultar ▴' : 'Ver ▾';
+  icon.innerHTML = vaAAbrir ? 'Ocultar <svg class="ico"><use href="#i-chevron-ar"/></svg>' : 'Ver <svg class="ico"><use href="#i-chevron-ab"/></svg>';
   if (vaAAbrir) renderGestionPlantillas(); // siempre refresca al abrir, por si cambió algo
   gestionInicializada = true;
 }
@@ -2925,10 +3121,10 @@ function renderGestionPlantillas() {
       </div>
       <div style="font-size:12px;color:#666;margin-top:4px;">${frecStr}${diaStr}${montoStr}${proximaStr}</div>
       <div style="display:flex;gap:8px;margin-top:10px;">
-        <button onclick="abrirModalObligacion('${p.id}')" style="flex:1;padding:7px;background:#f0f4ff;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#003a79;cursor:pointer;">✏️ Editar</button>
+        <button onclick="abrirModalObligacion('${p.id}')" style="flex:1;padding:7px;background:#f0f4ff;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#003a79;cursor:pointer;"><svg class="ico"><use href="#i-lapiz"/></svg> Editar</button>
         ${activa
-          ? `<button onclick="archivarPlantillaDesdeGestion('${p.id}')" style="flex:1;padding:7px;background:#fff8e1;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#856404;cursor:pointer;">📦 Archivar</button>`
-          : `<button onclick="activarPlantillaDesdeGestion('${p.id}')" style="flex:1;padding:7px;background:#f0fff4;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#155724;cursor:pointer;">▶️ Reactivar</button>`}
+          ? `<button onclick="archivarPlantillaDesdeGestion('${p.id}')" style="flex:1;padding:7px;background:#fff8e1;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#856404;cursor:pointer;"><svg class="ico"><use href="#i-archivar"/></svg> Archivar</button>`
+          : `<button onclick="activarPlantillaDesdeGestion('${p.id}')" style="flex:1;padding:7px;background:#f0fff4;border:none;border-radius:7px;font-size:12px;font-weight:600;color:#155724;cursor:pointer;"><svg class="ico"><use href="#i-reproducir"/></svg> Reactivar</button>`}
       </div>
     </div>`;
   }).join('');
@@ -2939,7 +3135,7 @@ async function archivarPlantillaDesdeGestion(id) {
   try {
     const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'archivarPlantilla', id }) });
     const data = await r.json();
-    if (data.ok) { showToast('✅ Obligación archivada'); await cargarObligaciones(); renderGestionPlantillas(); }
+    if (data.ok) { showToast('<svg class="ico"><use href="#i-check-circ"/></svg> Obligación archivada'); await cargarObligaciones(); renderGestionPlantillas(); }
     else alert('Error: ' + (data.error||''));
   } catch(e) { alert('Error de conexión'); }
 }
@@ -2949,7 +3145,7 @@ async function activarPlantillaDesdeGestion(id) {
   try {
     const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'activarPlantilla', id }) });
     const data = await r.json();
-    if (data.ok) { showToast('✅ Obligación reactivada'); await cargarObligaciones(); renderGestionPlantillas(); }
+    if (data.ok) { showToast('<svg class="ico"><use href="#i-check-circ"/></svg> Obligación reactivada'); await cargarObligaciones(); renderGestionPlantillas(); }
     else alert('Error: ' + (data.error||''));
   } catch(e) { alert('Error de conexión'); }
 }
@@ -2959,7 +3155,7 @@ async function confirmarEliminarVencimiento(id, nombre) {
   try {
     const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'eliminarVencimiento', id }) });
     const data = await r.json();
-    if (data.ok) { showToast('✅ Vencimiento eliminado'); await cargarObligaciones(); }
+    if (data.ok) { showToast('<svg class="ico"><use href="#i-check-circ"/></svg> Vencimiento eliminado'); await cargarObligaciones(); }
     else alert('Error: ' + (data.error||''));
   } catch(e) { alert('Error de conexión'); }
 }
@@ -2972,12 +3168,12 @@ function revisarAlertas() {
   const banner = document.getElementById('alertaBanner');
   if (!itemsAlerta.length) { banner.innerHTML = ''; return; }
   banner.innerHTML = `<div class="alerta-banner">
-    <div class="alerta-banner-titulo">⚠️ Obligaciones que requieren atención</div>
+    <div class="alerta-banner-titulo"><svg class="ico"><use href="#i-alerta"/></svg> Obligaciones que requieren atención</div>
     ${itemsAlerta.map(v => {
       const est = badgeVisual(v);
-      const etq = est === 'vencida' ? '🔴 VENCIDA' : '⚠️ HOY/MAÑANA';
+      const etq = est === 'vencida' ? '<svg class="ico"><use href="#i-alerta-circ"/></svg> VENCIDA' : '<svg class="ico"><use href="#i-alerta"/></svg> HOY/MAÑANA';
       const monto = v.montoEstimado && !isNaN(parseInt(v.montoEstimado)) ? ' · $'+parseInt(v.montoEstimado).toLocaleString('es-CL') : '';
-      return '<div class="alerta-banner-item" onclick="clickVencimiento(\''+v.id+'\')" style="cursor:pointer">📌 <strong>'+v.nombre+'</strong> — '+etq+': '+fmtFecha(v.fecha)+monto+'</div>';
+      return '<div class="alerta-banner-item" onclick="clickVencimiento(\''+v.id+'\')" style="cursor:pointer"><svg class="ico"><use href="#i-punto"/></svg> <strong>'+v.nombre+'</strong> — '+etq+': '+fmtFecha(v.fecha)+monto+'</div>';
     }).join('')}
   </div>`;
 }
@@ -3093,9 +3289,9 @@ function clickVencimiento(id) {
   const detalle = document.getElementById('pagoDetalle');
   if (detalle) {
     let html = '';
-    if (v.item) html += `<div style="font-size:13px;color:#555;margin-bottom:4px;">📋 <strong>${v.item}</strong></div>`;
+    if (v.item) html += `<div style="font-size:13px;color:#555;margin-bottom:4px;"><svg class="ico"><use href="#i-portapapeles"/></svg> <strong>${v.item}</strong></div>`;
     if (badgeVisual(v) === 'vencida') {
-      html += `<div style="font-size:13px;color:#c0392b;font-weight:700;margin-bottom:6px;">⚠️ Vencida desde ${fmtFecha(v.fecha)}</div>`;
+      html += `<div style="font-size:13px;color:#c0392b;font-weight:700;margin-bottom:6px;"><svg class="ico"><use href="#i-alerta"/></svg> Vencida desde ${fmtFecha(v.fecha)}</div>`;
     }
     if (v.area === 'PRORRATEADO' && v.pArea1) {
       html += `<div style="font-size:12px;color:#888;margin-bottom:2px;">Distribución (se calcula sobre el monto que ingreses):</div>`;
@@ -3120,7 +3316,7 @@ async function confirmarPago() {
   // Bloquear botón para evitar doble envío
   const btnConfirmar = document.getElementById('btnConfirmarPago');
   const textoOriginal = btnConfirmar ? btnConfirmar.textContent : '';
-  if (btnConfirmar) { btnConfirmar.disabled = true; btnConfirmar.textContent = '⏳ Guardando...'; }
+  if (btnConfirmar) { btnConfirmar.disabled = true; btnConfirmar.innerHTML = '<svg class="ico ico-girar"><use href="#i-cargando"/></svg> Guardando...'; }
 
   let imageData = null, fileName = null, mimeType = null;
   if (pagoFile) {
@@ -3144,7 +3340,7 @@ async function confirmarPago() {
     if (data.ok) {
       resetModalPago();
       cerrarModal('modalPago');
-      showToast('✅ Pago registrado');
+      showToast('<svg class="ico"><use href="#i-check-circ"/></svg> Pago registrado');
       await cargarObligaciones();
     } else {
       if (btnConfirmar) { btnConfirmar.disabled = false; btnConfirmar.textContent = textoOriginal; }
@@ -3172,10 +3368,10 @@ function resetModalPago() {
   document.getElementById('pagoPreviewImg').src = '';
   document.getElementById('pagoUploadZone').classList.remove('has-file');
   document.getElementById('pagoUploadText').textContent = 'Selecciona una opción';
-  document.getElementById('pagoUploadIcon').textContent = '📷';
+  document.getElementById('pagoUploadIcon').innerHTML = '<svg class="ico"><use href="#i-camara"/></svg>';
   document.getElementById('pagoUploadBtns').style.display = 'grid';
   const btn = document.getElementById('btnConfirmarPago');
-  if (btn) { btn.disabled = false; btn.textContent = '✓ Confirmar pago'; }
+  if (btn) { btn.disabled = false; btn.innerHTML = '<svg class="ico"><use href="#i-check"/></svg> Confirmar pago'; }
 }
 
 // Poblar selector de ítems en modal obligación
@@ -3185,18 +3381,18 @@ async function sugerirProrrateoRegistro() {
   const a2 = document.getElementById('area2').value;
   const a3 = document.getElementById('area3').value;
   const areasIngresadas = [a1, a2, a3].filter(a => a);
-  if (!areasIngresadas.length) { sug.style.display='block'; sug.textContent='⚠️ Ingresa al menos un área primero'; return; }
+  if (!areasIngresadas.length) { sug.style.display='block'; sug.innerHTML='<svg class="ico"><use href="#i-alerta"/></svg> Ingresa al menos un área primero'; return; }
   sug.style.display = 'block';
-  sug.textContent = '⏳ Calculando porcentajes...';
+  sug.innerHTML = '<svg class="ico ico-girar"><use href="#i-cargando"/></svg> Calculando porcentajes...';
   try {
     const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getVentasPorArea', areas: areasIngresadas }) });
     const data = await r.json();
-    if (!data.ok || !data.areas || !data.areas.length) { sug.textContent = '⚠️ No se pudieron obtener las ventas'; return; }
+    if (!data.ok || !data.areas || !data.areas.length) { sug.innerHTML = '<svg class="ico"><use href="#i-alerta"/></svg> No se pudieron obtener las ventas'; return; }
     // Filtrar solo las áreas ingresadas y recalcular %
     const ventasAreas = {};
     data.areas.forEach(a => { if (areasIngresadas.includes(a.area)) ventasAreas[a.area] = a.total; });
     const totalFiltrado = Object.values(ventasAreas).reduce((s,v)=>s+v,0);
-    if (!totalFiltrado) { sug.textContent='⚠️ Sin ventas para las áreas seleccionadas'; return; }
+    if (!totalFiltrado) { sug.innerHTML='<svg class="ico"><use href="#i-alerta"/></svg> Sin ventas para las áreas seleccionadas'; return; }
     // Calcular % para cada área ingresada
     const pcts = areasIngresadas.map((a,i) => {
       const pct = ventasAreas[a] ? Math.round(ventasAreas[a]/totalFiltrado*100) : 0;
@@ -3209,9 +3405,9 @@ async function sugerirProrrateoRegistro() {
     if (pcts[0]) document.getElementById('pct1').value = pcts[0].pct;
     if (pcts[1]) document.getElementById('pct2').value = pcts[1].pct;
     if (pcts[2]) document.getElementById('pct3').value = pcts[2].pct;
-    sug.textContent = `✅ ${data.mes}: ${pcts.map(p=>`${p.area} ${p.pct}%`).join(' · ')}`;
+    sug.innerHTML = `<svg class="ico"><use href="#i-check-circ"/></svg> ${data.mes}: ${pcts.map(p=>`${p.area} ${p.pct}%`).join(' · ')}`;
     validarProrrateo(); checkReady();
-  } catch(e) { sug.textContent = '⚠️ Error de conexión'; }
+  } catch(e) { sug.innerHTML = '<svg class="ico"><use href="#i-alerta"/></svg> Error de conexión'; }
 }
 
 async function sugerirProrrateo() {
@@ -3220,25 +3416,25 @@ async function sugerirProrrateo() {
   const a2 = document.getElementById('obligPArea2').value;
   const a3 = document.getElementById('obligPArea3').value;
   const areasIngresadas = [a1, a2, a3].filter(a => a);
-  if (!areasIngresadas.length) { sug.style.display='block'; sug.textContent='⚠️ Ingresa al menos un área primero'; return; }
+  if (!areasIngresadas.length) { sug.style.display='block'; sug.innerHTML='<svg class="ico"><use href="#i-alerta"/></svg> Ingresa al menos un área primero'; return; }
   sug.style.display = 'block';
-  sug.textContent = '⏳ Calculando porcentajes...';
+  sug.innerHTML = '<svg class="ico ico-girar"><use href="#i-cargando"/></svg> Calculando porcentajes...';
   try {
     const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getVentasPorArea', areas: areasIngresadas }) });
     const data = await r.json();
-    if (!data.ok || !data.areas || !data.areas.length) { sug.textContent = '⚠️ No se pudieron obtener las ventas'; return; }
+    if (!data.ok || !data.areas || !data.areas.length) { sug.innerHTML = '<svg class="ico"><use href="#i-alerta"/></svg> No se pudieron obtener las ventas'; return; }
     const ventasAreas = {};
     data.areas.forEach(a => { if (areasIngresadas.includes(a.area)) ventasAreas[a.area] = a.total; });
     const totalFiltrado = Object.values(ventasAreas).reduce((s,v)=>s+v,0);
-    if (!totalFiltrado) { sug.textContent='⚠️ Sin ventas para las áreas seleccionadas'; return; }
+    if (!totalFiltrado) { sug.innerHTML='<svg class="ico"><use href="#i-alerta"/></svg> Sin ventas para las áreas seleccionadas'; return; }
     const pcts = areasIngresadas.map(a => ({ area: a, pct: ventasAreas[a] ? Math.round(ventasAreas[a]/totalFiltrado*100) : 0 }));
     const suma = pcts.reduce((s,p)=>s+p.pct,0);
     if (suma !== 100 && pcts.length) pcts[0].pct += (100-suma);
     if (pcts[0]) document.getElementById('obligPPct1').value = pcts[0].pct;
     if (pcts[1]) document.getElementById('obligPPct2').value = pcts[1].pct;
     if (pcts[2]) document.getElementById('obligPPct3').value = pcts[2].pct;
-    sug.textContent = `✅ ${data.mes}: ${pcts.map(p=>`${p.area} ${p.pct}%`).join(' · ')}`;
-  } catch(e) { sug.textContent = '⚠️ Error de conexión'; }
+    sug.innerHTML = `<svg class="ico"><use href="#i-check-circ"/></svg> ${data.mes}: ${pcts.map(p=>`${p.area} ${p.pct}%`).join(' · ')}`;
+  } catch(e) { sug.innerHTML = '<svg class="ico"><use href="#i-alerta"/></svg> Error de conexión'; }
 }
 
 function agregarFilaAreaOblig(area='', monto='') {
@@ -3369,7 +3565,7 @@ async function archivarObligacionActual() {
   try {
     const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'archivarPlantilla', id: obligEditId }) });
     const data = await r.json();
-    if (data.ok) { showToast('✅ Obligación archivada'); cerrarModal('modalOblig'); await cargarObligaciones(); }
+    if (data.ok) { showToast('<svg class="ico"><use href="#i-check-circ"/></svg> Obligación archivada'); cerrarModal('modalOblig'); await cargarObligaciones(); }
     else alert('Error: ' + (data.error||''));
   } catch(e) { alert('Error de conexión'); }
 }
@@ -3584,10 +3780,10 @@ function mostrarAlertaDisruptiva(itemsAlerta) {
     const obsStr = v.obs ? `<div style="font-size:12px;color:#888;margin-top:2px;">${v.obs}</div>` : '';
     return `<div style="background:#fff5f5;border:1.5px solid #e74c3c;border-radius:10px;padding:12px 14px;margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-        <span style="font-size:15px;font-weight:700;color:#222;">⚡ ${v.nombre}</span>
+        <span style="font-size:15px;font-weight:700;color:#222;"><svg class="ico"><use href="#i-punto"/></svg> ${v.nombre}</span>
         ${etiqueta}
       </div>
-      <div style="font-size:13px;color:#555;">📅 ${fmtFecha(v.fecha)}${montoStr}</div>
+      <div style="font-size:13px;color:#555;"><svg class="ico"><use href="#i-calendario"/></svg> ${fmtFecha(v.fecha)}${montoStr}</div>
       ${obsStr}
     </div>`;
   }).join('');
@@ -3653,7 +3849,7 @@ async function eliminarGasto(fila) {
   const lista = document.getElementById('recordsList');
   const infoGasto = r ? `<div style="font-size:13px;color:#555;margin-top:8px;">${r.item || ''}${r.area ? ' · '+r.area : ''}${r.montoFinal ? ' · $'+parseInt(r.montoFinal).toLocaleString('es-CL') : ''}</div>` : '';
   lista.innerHTML = `<div style="text-align:center;padding:30px 20px;">
-    <div style="font-size:32px;margin-bottom:12px;">🗑</div>
+    <div style="font-size:32px;margin-bottom:12px;"><svg class="ico"><use href="#i-basura"/></svg></div>
     <div style="font-size:15px;font-weight:600;color:#c0392b;">Eliminando registro...</div>
     ${infoGasto}
   </div>`;
