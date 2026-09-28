@@ -926,7 +926,7 @@
 </div>
 
 <script>
-const BACKEND_URL = "https://script.google.com/macros/s/AKfycbwu3SBJedX7UG0K2DTuZuFeeYsA3hxdayWO_LfY2Jet9oFZJaTkGRWo-LNmj8F9N9rn/exec";
+const BACKEND_URL = "https://script.google.com/macros/s/AKfycbzXVbOKTtYMYBdtY5LC9X7vsQrNdoyuwB5irOSmOOJYEiaQb1gP2YsbR3Y3BFIOswmQ/exec";
 
 // ─── NAVEGACIÓN ───────────────────────────────
 function showSection(id, tab) {
@@ -1073,21 +1073,136 @@ async function cargarHistorialCargas() {
             ${completa ? '<svg class="ico"><use href="#i-check"/></svg> COMPLETA' : `FALTAN ${faltan}`}
           </span>
         </div>
-        <div style="font-size:11px;color:#666;margin-top:4px;">${c.total} documento(s) · ${c.importados} importado(s)</div>
+        <div style="font-size:11px;color:#666;margin-top:4px;">
+          ${c.total} documento(s) · ${c.importados} importado(s)${c.enDuda ? ` · <span style="color:#856404;font-weight:700;">${c.enDuda} en duda</span>` : ''}
+        </div>
         ${!completa && c.pendientes.length ? `<div style="margin-top:6px;padding:6px 8px;background:#fff;border-radius:6px;border:1px solid #f0e0c0;">
           <div style="font-size:10px;font-weight:700;color:#856404;margin-bottom:3px;">Pendientes:</div>
-          ${c.pendientes.slice(0,6).map(p => `<div style="font-size:11px;color:#555;">• ${p.razonSocial || 'Documento'} F.${p.folio}</div>`).join('')}
+          ${c.pendientes.slice(0,6).map(p => `<div style="font-size:11px;color:#555;">• ${p.razonSocial || 'Documento'} F.${p.folio}${p.nota ? `<div style="font-size:11px;color:#856404;margin:1px 0 3px 10px;"><svg class="ico"><use href="#i-alerta-circ"/></svg> ${escHTML(p.nota)}</div>` : ''}</div>`).join('')}
           ${c.pendientes.length > 6 ? `<div style="font-size:11px;color:#888;">• ...y ${c.pendientes.length-6} más</div>` : ''}
         </div>` : ''}
-        <div style="display:flex;gap:6px;margin-top:8px;">
-          ${!completa && c.url ? `<button onclick="reabrirCarga('${c.id}')" style="flex:1;padding:6px;background:#003a79;color:white;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-recargar"/></svg> Reabrir carga</button>` : ''}
-          ${c.url ? `<a href="${c.url}" target="_blank" style="flex:1;padding:6px;background:white;border:1px solid #ddd;border-radius:7px;font-size:11px;font-weight:600;color:#666;text-decoration:none;text-align:center;"><svg class="ico"><use href="#i-clip"/></svg> Archivo <svg class="ico"><use href="#i-enlace-ext"/></svg></a>` : ''}
+        <div id="notaCarga-${c.id}" data-nota="${escHTML(c.nota || '')}" style="margin-top:6px;">${c.nota ? tarjetaNotaCarga(c.id, c.nota) : ''}</div>
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+          ${!completa && c.url ? `<button onclick="reabrirCarga('${c.id}')" style="flex:1;min-width:110px;padding:6px;background:#003a79;color:white;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-recargar"/></svg> Reabrir carga</button>` : ''}
+          ${c.url ? `<a href="${c.url}" target="_blank" style="flex:1;min-width:80px;padding:6px;background:white;border:1px solid #ddd;border-radius:7px;font-size:11px;font-weight:600;color:#666;text-decoration:none;text-align:center;"><svg class="ico"><use href="#i-clip"/></svg> Archivo <svg class="ico"><use href="#i-enlace-ext"/></svg></a>` : ''}
+          <button onclick="editarNotaCarga('${c.id}')" style="flex:1;min-width:80px;padding:6px;background:#f7f9fc;border:1px solid #ddd;border-radius:7px;font-size:11px;font-weight:600;color:#003a79;cursor:pointer;"><svg class="ico"><use href="#i-lapiz"/></svg> ${c.nota ? 'Editar nota' : 'Nota'}</button>
+          <button onclick="eliminarCarga('${c.id}', '${periodo.replace(/'/g,"\\'")}')" style="padding:6px 10px;background:#fff0f0;border:1px solid #f5c6cb;border-radius:7px;font-size:11px;font-weight:600;color:#c0392b;cursor:pointer;"><svg class="ico"><use href="#i-basura"/></svg></button>
         </div>
       </div>`;
     }).join('');
   } catch(e) {
     cont.innerHTML = '<div style="font-size:12px;color:#aaa;text-align:center;padding:8px;">No se pudo cargar el historial.</div>';
   }
+}
+
+// Escapa texto libre que va a parar dentro de innerHTML (notas escritas a mano).
+function escHTML(t) {
+  return String(t == null ? '' : t)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ── NOTA POR DOCUMENTO ───────────────────────────────────────────────────────
+// Se guarda por RUT|folio en la hoja "Notas Documentos", no dentro de la carga: así se
+// puede marcar una duda apenas se abre el archivo y la nota sigue al documento aunque
+// vuelva a aparecer en otro archivo del SII.
+function bloqueNotaDoc(f, i) {
+  if (f.nota) {
+    return `<div id="notaDoc-${i}" style="margin-top:8px;background:#fffdf7;border:1px solid #e0a800;border-radius:8px;padding:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+        <div style="font-size:11px;color:#856404;white-space:pre-wrap;flex:1;"><svg class="ico"><use href="#i-alerta-circ"/></svg> ${escHTML(f.nota)}</div>
+        <button type="button" onclick="editarNotaDoc(${i})" style="background:none;border:none;color:#856404;font-size:11px;font-weight:600;cursor:pointer;padding:0;white-space:nowrap;"><svg class="ico"><use href="#i-lapiz"/></svg> Editar</button>
+      </div>
+    </div>`;
+  }
+  return `<div id="notaDoc-${i}" style="margin-top:8px;">
+    <button type="button" onclick="editarNotaDoc(${i})" style="background:none;border:none;color:#888;font-size:11px;font-weight:600;cursor:pointer;padding:0;"><svg class="ico"><use href="#i-lapiz"/></svg> Dejar una nota / marcar en duda</button>
+  </div>`;
+}
+
+function editarNotaDoc(i) {
+  const f = facturasSII[i];
+  const cont = document.getElementById('notaDoc-' + i);
+  if (!f || !cont) return;
+  cont.innerHTML = `<div style="background:#fffdf7;border:1px solid #e0a800;border-radius:8px;padding:8px;">
+    <textarea id="notaDocTxt-${i}" placeholder="Ej: no sé si el gas es del local o del horno — preguntar" style="width:100%;min-height:54px;padding:8px;border:1px solid #e0a800;border-radius:6px;font-size:12px;resize:vertical;box-sizing:border-box;">${escHTML(f.nota || '')}</textarea>
+    <div style="display:flex;gap:6px;margin-top:6px;">
+      <button type="button" onclick="guardarNotaDocUI(${i})" style="flex:1;padding:6px;background:#856404;color:white;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;">Guardar</button>
+      <button type="button" onclick="renderCargaSII()" style="padding:6px 12px;background:#f5f5f5;border:none;border-radius:6px;font-size:11px;font-weight:600;color:#666;cursor:pointer;">Cancelar</button>
+    </div>
+    <div style="font-size:10px;color:#999;margin-top:4px;">Déjala vacía para quitar la nota. Aparecerá en el historial junto a este documento.</div>
+  </div>`;
+  const ta = document.getElementById('notaDocTxt-' + i);
+  if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+}
+
+async function guardarNotaDocUI(i) {
+  const f = facturasSII[i];
+  const ta = document.getElementById('notaDocTxt-' + i);
+  if (!f || !ta) return;
+  const texto = ta.value.trim();
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({
+      action: 'guardarNotaDocumento',
+      clave: f.rut + '|' + f.folio,
+      rut: f.rut, folio: f.folio, razonSocial: f.razonSocial,
+      nota: texto }) });
+    const d = await r.json();
+    if (d.error) { alert('No se pudo guardar: ' + d.error); return; }
+  } catch(e) { alert('Error de conexión. La nota no se guardó.'); return; }
+  f.nota = texto;
+  showToast(texto ? 'Nota guardada' : 'Nota quitada');
+  renderCargaSII();
+  cargarHistorialCargas();
+}
+
+// ── NOTAS DEL HISTORIAL DE CARGAS ────────────────────────────────────────────
+function tarjetaNotaCarga(id, nota) {
+  return `<div style="background:#f7f9fc;border-left:3px solid #003a79;border-radius:0 6px 6px 0;padding:6px 8px;font-size:11px;color:#444;white-space:pre-wrap;">${escHTML(nota)}</div>`;
+}
+
+function editarNotaCarga(id) {
+  const cont = document.getElementById('notaCarga-' + id);
+  if (!cont) return;
+  const actual = cont.dataset.nota || '';
+  cont.innerHTML = `<textarea id="notaTxt-${id}" placeholder="Ej: alcancé hasta el folio 200, el resto queda para el lunes" style="width:100%;min-height:58px;padding:8px;border:1px solid #003a79;border-radius:6px;font-size:12px;resize:vertical;box-sizing:border-box;">${escHTML(actual)}</textarea>
+    <div style="display:flex;gap:6px;margin-top:4px;">
+      <button onclick="guardarNotaCargaUI('${id}')" style="flex:1;padding:6px;background:#003a79;color:white;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;">Guardar nota</button>
+      <button onclick="cargarHistorialCargas()" style="padding:6px 12px;background:#f5f5f5;border:none;border-radius:6px;font-size:11px;font-weight:600;color:#666;cursor:pointer;">Cancelar</button>
+    </div>`;
+  const ta = document.getElementById('notaTxt-' + id);
+  if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+}
+
+async function guardarNotaCargaUI(id) {
+  const ta = document.getElementById('notaTxt-' + id);
+  if (!ta) return;
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({
+      action:'guardarNotaCarga', id: id, nota: ta.value }) });
+    const d = await r.json();
+    if (d.error) { alert('No se pudo guardar: ' + d.error); return; }
+    showToast(ta.value.trim() ? 'Nota guardada' : 'Nota borrada');
+  } catch(e) { alert('Error de conexión. La nota no se guardó.'); return; }
+  cargarHistorialCargas();
+}
+
+// Borra una carga del historial. Es solo bitácora: los gastos importados no se tocan.
+async function eliminarCarga(id, periodo) {
+  const msg = `¿Borrar esta carga del historial?\n\nPeríodo: ${periodo}\n\n`
+    + `Se borra el registro y su copia del archivo (queda en la papelera de Drive).\n\n`
+    + `Los gastos que ya importaste NO se tocan, y la detección de duplicados sigue `
+    + `funcionando igual: si vuelves a cargar ese archivo del SII, los documentos ya `
+    + `importados te van a salir marcados como tal.`;
+  if (!confirm(msg)) return;
+  try {
+    const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({
+      action:'eliminarCargaSII', id: id }) });
+    const d = await r.json();
+    if (d.error) { alert('No se pudo borrar: ' + d.error); return; }
+    showToast('Carga eliminada del historial');
+  } catch(e) { alert('Error de conexión. No se borró nada.'); return; }
+  cargarHistorialCargas();
 }
 
 // Procesa el contenido de un archivo del SII (venga del computador o de Drive)
@@ -1108,7 +1223,12 @@ async function procesarContenidoSII(contenido) {
     const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getFoliosImportados' }) });
     const d = await r.json();
     const yaImportados = new Set(d.folios || []);
-    facturasSII.forEach(f => { f.yaImportada = yaImportados.has(f.rut + '|' + f.folio); });
+    const notas = d.notasDocs || {};
+    facturasSII.forEach(f => {
+      const clave = f.rut + '|' + f.folio;
+      f.yaImportada = yaImportados.has(clave);
+      f.nota = notas[clave] || '';
+    });
   } catch(err) { /* si falla, se muestran todas como pendientes */ }
 
   // Buscar posibles coincidencias con gastos registrados a mano (sin RUT/folio):
@@ -1211,7 +1331,12 @@ function leerArchivoSII(input) {
         const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getFoliosImportados' }) });
         const d = await r.json();
         const yaImportados = new Set(d.folios || []);
-        facturasSII.forEach(f => { f.yaImportada = yaImportados.has(f.rut + '|' + f.folio); });
+        const notas = d.notasDocs || {};
+        facturasSII.forEach(f => {
+          const clave = f.rut + '|' + f.folio;
+          f.yaImportada = yaImportados.has(clave);
+          f.nota = notas[clave] || '';
+        });
       } catch(err) { /* si falla, se muestran todas como pendientes */ }
       renderCargaSII();
 
@@ -1382,6 +1507,7 @@ function renderTarjetaSII(f, i) {
         <div style="font-size:14px;font-weight:700;color:#999;white-space:nowrap;">$${Math.round(f.total).toLocaleString('es-CL')}</div>
       </div>
       <div style="margin-top:6px;"><span style="background:#e8e8e8;color:#666;font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;"><svg class="ico"><use href="#i-check"/></svg> YA IMPORTADA</span></div>
+      ${bloqueNotaDoc(f, i)}
     </div>`;
   }
 
@@ -1401,6 +1527,7 @@ function renderTarjetaSII(f, i) {
       Neto $${Math.round(f.neto).toLocaleString('es-CL')} · IVA $${Math.round(f.iva).toLocaleString('es-CL')}${f.otroImpuesto ? ` · Otro imp. $${Math.round(f.otroImpuesto).toLocaleString('es-CL')} (${f.tasaOtroImpuesto}%)` : ''}
     </div>
     ${etiquetas.length ? `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">${etiquetas.join('')}</div>` : ''}
+    ${bloqueNotaDoc(f, i)}
     ${(f.coincidencias && f.coincidencias.length) ? `<div style="margin-top:8px;background:#fffdf7;border:1px solid #e0a800;border-radius:8px;padding:10px;">
       <div style="font-size:11px;font-weight:700;color:#856404;margin-bottom:6px;"><svg class="ico"><use href="#i-alerta"/></svg> Posible coincidencia con un gasto ya registrado</div>
       ${f.coincidencias.map((c, ci) => `<div style="background:white;border-radius:6px;padding:8px;margin-bottom:6px;border:1px solid #f0e0c0;">
