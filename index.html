@@ -306,10 +306,10 @@
     #anContenido[style*="none"] { display: none !important; }
     #anContenido > .card { margin-bottom: 0; }
     /* Resumen del mes: ancho completo, los 4 indicadores en una fila */
-    #anContenido > .card:nth-child(1) { grid-column: 1 / -1; }
-    #anContenido > .card:nth-child(1) > div:last-child { grid-template-columns: repeat(4, 1fr) !important; }
+    #cardResumenMes { grid-column: 1 / -1; }
+    #anTiles { grid-template-columns: repeat(4, 1fr) !important; }
     /* Evolución mensual: ancho completo y al final (necesita el espacio) */
-    #anContenido > .card:nth-child(5) { grid-column: 1 / -1; order: 9; }
+    #cardEvolucion { grid-column: 1 / -1; order: 9; }
 
     /* ══ CARGA SII ═══════════════════════════════════════════════════════ */
     #sec-carga .container {
@@ -547,11 +547,11 @@
   <div id="anContenido" style="display:none;">
 
     <!-- RESUMEN TOTAL -->
-    <div class="card" style="padding:16px;">
+    <div class="card" id="cardResumenMes" style="padding:16px;">
       <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:12px;"><svg class="ico"><use href="#i-portapapeles"/></svg> Resumen del mes</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div id="anTiles" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <div style="background:#f0f7ff;border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:11px;color:#666;font-weight:600;text-transform:uppercase;">Total gastos</div>
+          <div style="font-size:11px;color:#666;font-weight:600;text-transform:uppercase;">Costo operacional</div>
           <div style="font-size:20px;font-weight:800;color:#003a79;margin-top:4px;" id="anTotalGastos">$0</div>
         </div>
         <div style="background:#fff8e1;border-radius:10px;padding:12px;text-align:center;">
@@ -567,6 +567,14 @@
           <div style="font-size:18px;font-weight:700;color:#c0392b;margin-top:4px;" id="anVariables">$0</div>
         </div>
       </div>
+      <div id="anFueraCosto"></div>
+    </div>
+
+    <!-- POR SUB TIPO -->
+    <div class="card" id="cardSubTipo" style="padding:16px;">
+      <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:6px;"><svg class="ico"><use href="#i-cruce"/></svg> Por sub tipo</div>
+      <div style="font-size:11px;color:#888;margin-bottom:12px;">Operativo y comercial son el costo de operar. Inversión, financiero y pasivo no lo son: se compran activos o se paga algo que ya debías.</div>
+      <div id="anSubTipos"></div>
     </div>
 
     <!-- POR ÁREA -->
@@ -588,7 +596,7 @@
     </div>
 
     <!-- EVOLUCIÓN MENSUAL -->
-    <div class="card" style="padding:16px;">
+    <div class="card" id="cardEvolucion" style="padding:16px;">
       <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;margin-bottom:12px;"><svg class="ico"><use href="#i-tendencia"/></svg> Evolución mensual</div>
       <div id="anEvolucion"></div>
     </div>
@@ -4229,6 +4237,30 @@ async function cargarAnalisis() {
   } catch(e) { carg.textContent = 'Error de conexión.'; }
 }
 
+// El Sub Tipo del ítem dice si el desembolso es realmente un COSTO de operar o no.
+// Comprar una máquina (INVERSIÓN), pagar el IVA (PASIVO) o abonar una cuota del
+// préstamo (FINANCIERO) son salidas de plata, pero no son costo del mes: meterlas en el
+// total infla el mes y hace que dos meses dejen de ser comparables.
+const SUBTIPOS_OPERACION = ['OPERATIVO', 'COMERCIAL', 'SIN CLASIFICAR'];
+
+const SUBTIPO_INFO = {
+  'OPERATIVO':      { color: '#003a79', nota: 'Costo de producir y operar' },
+  'COMERCIAL':      { color: '#e67e22', nota: 'Costo de vender' },
+  'INVERSIÓN':      { color: '#8e44ad', nota: 'Compra de activos — no es costo del mes' },
+  'FINANCIERO':     { color: '#16a085', nota: 'Deuda: solo los intereses son costo' },
+  'PASIVO':         { color: '#7f8c8d', nota: 'Pago de algo que ya debías' },
+  'SIN CLASIFICAR': { color: '#bbb',    nota: 'Sin sub tipo en el catálogo de ítems' }
+};
+
+function subTipoDe(g) {
+  const st = String(g.subTipo || '').toUpperCase().trim();
+  return st || 'SIN CLASIFICAR';
+}
+
+function esCostoOperacional(g) {
+  return SUBTIPOS_OPERACION.indexOf(subTipoDe(g)) > -1;
+}
+
 function parseMonto(v) {
   if (typeof v === 'number') return v;
   return parseFloat(String(v||'0').replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,'')) || 0;
@@ -4256,16 +4288,57 @@ function renderAnalisis(gastos, mes, anio) {
   }
 
   const mesKeyActual = `${anio}-${mesStr}`;
-  const del_mes = gastos.filter(g => {
+  // let, no const: más abajo se reduce a solo el costo operacional.
+  let del_mes = gastos.filter(g => {
     // En modo caja usar fecha de pago si existe, sino fecha de compra
     const fechaUsar = modoAnalisis === 'caja' && g.fechaPago ? g.fechaPago : g.fecha;
     return getMesKey(fechaUsar) === mesKeyActual;
   });
 
+  // Desde acá, "del_mes" pasa a ser SOLO el costo operacional: todas las vistas del mes
+  // (áreas, fijo/variable, top ítems, evolución) se calculan sobre eso. Lo demás se
+  // muestra aparte, para que se vea sin contaminar el número que sí es comparable.
+  const delMesTodo = del_mes;
+  const fueraDeCosto = delMesTodo.filter(g => !esCostoOperacional(g));
+  del_mes = delMesTodo.filter(esCostoOperacional);
+
   const total = del_mes.reduce((s,g) => s+parseMonto(g.montoFinal), 0);
   const nReg = del_mes.length;
   const fijos = del_mes.filter(g => (g.categoria||'').toUpperCase()==='FIJO').reduce((s,g)=>s+parseMonto(g.montoFinal),0);
   const variables = del_mes.filter(g => (g.categoria||'').toUpperCase()==='VARIABLE').reduce((s,g)=>s+parseMonto(g.montoFinal),0);
+
+  // ── Lo que queda fuera del costo operacional ──
+  const porSubFuera = {};
+  fueraDeCosto.forEach(g => { const k=subTipoDe(g); porSubFuera[k]=(porSubFuera[k]||0)+parseMonto(g.montoFinal); });
+  const totalFuera = Object.values(porSubFuera).reduce((a,b)=>a+b,0);
+  document.getElementById('anFueraCosto').innerHTML = totalFuera ? `
+    <div style="margin-top:12px;padding-top:12px;border-top:1px dashed #ddd;">
+      <div style="font-size:11px;font-weight:700;color:#856404;text-transform:uppercase;margin-bottom:6px;">Fuera del costo operacional · $${Math.round(totalFuera).toLocaleString('es-CL')}</div>
+      ${Object.entries(porSubFuera).sort((a,b)=>b[1]-a[1]).map(([k,v]) => `
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:12px;padding:3px 0;">
+          <span style="color:#444;font-weight:600;">${k}</span>
+          <span style="color:#888;font-size:11px;flex:1;">${(SUBTIPO_INFO[k]||{}).nota || ''}</span>
+          <span style="font-weight:700;color:#856404;white-space:nowrap;">$${Math.round(v).toLocaleString('es-CL')}</span>
+        </div>`).join('')}
+    </div>` : '';
+
+  // ── Tarjeta por sub tipo: todo el mes, operacional y no operacional ──
+  const porSub = {};
+  delMesTodo.forEach(g => { const k=subTipoDe(g); porSub[k]=(porSub[k]||0)+parseMonto(g.montoFinal); });
+  const maxSub = Math.max(...Object.values(porSub), 1);
+  const totalMesCompleto = Object.values(porSub).reduce((a,b)=>a+b,0);
+  document.getElementById('anSubTipos').innerHTML = Object.keys(porSub).length
+    ? Object.entries(porSub).sort((a,b)=>b[1]-a[1]).map(([k,v]) => {
+        const info = SUBTIPO_INFO[k] || { color:'#003a79', nota:'' };
+        const esOp = SUBTIPOS_OPERACION.indexOf(k) > -1;
+        return `<div class="an-row" style="${esOp ? '' : 'opacity:0.75;'}">
+          <span class="an-label" style="font-size:12px;">${k}</span>
+          <div class="an-bar-wrap"><div class="an-bar" style="width:${Math.round(v/maxSub*100)}%;background:${info.color}"></div></div>
+          <span class="an-valor">$${Math.round(v).toLocaleString('es-CL')}</span>
+          <span class="an-pct">${totalMesCompleto?Math.round(v/totalMesCompleto*100):0}%</span>
+        </div>`;
+      }).join('')
+    : '<div style="color:#aaa;font-size:13px;">Sin datos</div>';
 
   document.getElementById('anTotalGastos').textContent = '$'+total.toLocaleString('es-CL');
   document.getElementById('anNRegistros').textContent = nReg;
@@ -4311,7 +4384,9 @@ function renderAnalisis(gastos, mes, anio) {
   gastos.forEach(g => {
     const fechaUsar = modoAnalisis === 'caja' && g.fechaPago ? g.fechaPago : g.fecha;
     const key = getMesKey(fechaUsar);
-    if (key) porMes[key]=(porMes[key]||0)+parseMonto(g.montoFinal);
+    // Solo costo operacional: si un mes trae la compra de una máquina, la barra se
+    // dispara y la comparación entre meses deja de decir nada.
+    if (key && esCostoOperacional(g)) porMes[key]=(porMes[key]||0)+parseMonto(g.montoFinal);
   });
   const mesesOrden = Object.keys(porMes).sort().slice(-6);
   const maxEvol = Math.max(...mesesOrden.map(k=>porMes[k]),1);
