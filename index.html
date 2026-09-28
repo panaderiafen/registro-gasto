@@ -934,7 +934,7 @@
 </div>
 
 <script>
-const BACKEND_URL = "https://script.google.com/macros/s/AKfycbwtsBzi4KYvoqkTnp3EriIl3UkNNdVX-T3_2391ePHUpsyepfwQmHFpYaLSV04ihxJb/exec";
+const BACKEND_URL = "https://script.google.com/macros/s/AKfycbw-3daoL-HrEaHyBxfBZCsXxiik887VqCFYcYO2jCW4ReQ8Crwn8pyvAPvE81tZPQ0u/exec";
 
 // ─── NAVEGACIÓN ───────────────────────────────
 function showSection(id, tab) {
@@ -1235,62 +1235,144 @@ function toggleHistorialCargas() {
   icon.innerHTML = vaAAbrir ? 'Ocultar <svg class="ico"><use href="#i-chevron-ar"/></svg>' : 'Ver <svg class="ico"><use href="#i-chevron-ab"/></svg>';
 }
 
+let cargasSII = [];
+// Qué está desplegado, para que no se cierre al redibujar tras guardar una nota.
+const historialAbierto = { meses: new Set(), docs: new Set() };
+let mesesInicializados = false;
+
 async function cargarHistorialCargas() {
   const cont = document.getElementById('historialCargas');
   if (!cont) return;
   try {
     const r = await fetch(BACKEND_URL, { method:'POST', body: JSON.stringify({ action:'getCargasSII' }) });
     const d = await r.json();
-    const cargas = d.cargas || [];
-
-    // Resumen en el encabezado: se ve sin necesidad de desplegar el panel
-    const badge = document.getElementById('historialCargasBadge');
-    const incompletas = cargas.filter(c => c.total > c.importados).length;
-    if (badge) badge.textContent = cargas.length
-      ? (incompletas ? `· ${incompletas} con pendientes` : '· todas completas')
-      : '';
-
-    if (!cargas.length) { cont.innerHTML = '<div style="font-size:12px;color:#aaa;text-align:center;padding:8px;">Aún no hay cargas registradas.</div>'; return; }
-
-    cont.innerHTML = cargas.map(c => {
-      const faltan = c.total - c.importados;
-      const completa = faltan === 0;
-      const periodo = (c.desde && c.hasta)
-        ? (c.desde === c.hasta ? fmtFecha(c.desde) : `${fmtFecha(c.desde)} al ${fmtFecha(c.hasta)}`)
-        : 'Sin fecha';
-      const fmt = formatoDeArchivo(c.nombreArchivo);
-      return `<div style="border:1px solid ${completa ? '#d4edda' : '#ffe0b2'};background:${completa ? '#f8fff9' : '#fffdf7'};border-radius:8px;padding:10px;margin-bottom:8px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-          <span style="font-size:13px;font-weight:700;color:#333;">${periodo}</span>
-          <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:${completa ? '#d4edda' : '#ffe0b2'};color:${completa ? '#155724' : '#856404'};white-space:nowrap;">
-            ${completa ? '<svg class="ico"><use href="#i-check"/></svg> COMPLETA' : `FALTAN ${faltan}`}
-          </span>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap;">
-          <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:${fmt.fondo};color:${fmt.color};white-space:nowrap;">${fmt.etiqueta}</span>
-          ${fmt.nota ? `<span style="font-size:10px;color:#aaa;">${fmt.nota}</span>` : ''}
-          ${c.nombreArchivo ? `<span style="font-size:10px;color:#bbb;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:190px;" title="${escHTML(c.nombreArchivo)}">${escHTML(c.nombreArchivo)}</span>` : ''}
-        </div>
-        <div style="font-size:11px;color:#666;margin-top:4px;">
-          ${c.total} documento(s) · ${c.importados} importado(s)${c.enDuda ? ` · <span style="color:#856404;font-weight:700;">${c.enDuda} en duda</span>` : ''}
-        </div>
-        ${!completa && c.pendientes.length ? `<div style="margin-top:6px;padding:6px 8px;background:#fff;border-radius:6px;border:1px solid #f0e0c0;">
-          <div style="font-size:10px;font-weight:700;color:#856404;margin-bottom:3px;">Pendientes:</div>
-          ${c.pendientes.slice(0,6).map(p => `<div style="font-size:11px;color:#555;">• ${p.razonSocial || 'Documento'} F.${p.folio}${p.nota ? `<div style="font-size:11px;color:#856404;margin:1px 0 3px 10px;"><svg class="ico"><use href="#i-alerta-circ"/></svg> ${escHTML(p.nota)}</div>` : ''}</div>`).join('')}
-          ${c.pendientes.length > 6 ? `<div style="font-size:11px;color:#888;">• ...y ${c.pendientes.length-6} más</div>` : ''}
-        </div>` : ''}
-        <div id="notaCarga-${c.id}" data-nota="${escHTML(c.nota || '')}" style="margin-top:6px;">${c.nota ? tarjetaNotaCarga(c.id, c.nota) : ''}</div>
-        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
-          ${!completa && c.url ? `<button onclick="reabrirCarga('${c.id}')" style="flex:1;min-width:110px;padding:6px;background:#003a79;color:white;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-recargar"/></svg> Reabrir carga</button>` : ''}
-          ${c.url ? `<a href="${c.url}" target="_blank" style="flex:1;min-width:80px;padding:6px;background:white;border:1px solid #ddd;border-radius:7px;font-size:11px;font-weight:600;color:#666;text-decoration:none;text-align:center;"><svg class="ico"><use href="#i-clip"/></svg> Archivo <svg class="ico"><use href="#i-enlace-ext"/></svg></a>` : ''}
-          <button onclick="editarNotaCarga('${c.id}')" style="flex:1;min-width:80px;padding:6px;background:#f7f9fc;border:1px solid #ddd;border-radius:7px;font-size:11px;font-weight:600;color:#003a79;cursor:pointer;"><svg class="ico"><use href="#i-lapiz"/></svg> ${c.nota ? 'Editar nota' : 'Nota'}</button>
-          <button onclick="eliminarCarga('${c.id}', '${periodo.replace(/'/g,"\\'")}')" style="padding:6px 10px;background:#fff0f0;border:1px solid #f5c6cb;border-radius:7px;font-size:11px;font-weight:600;color:#c0392b;cursor:pointer;"><svg class="ico"><use href="#i-basura"/></svg></button>
-        </div>
-      </div>`;
-    }).join('');
+    cargasSII = d.cargas || [];
   } catch(e) {
     cont.innerHTML = '<div style="font-size:12px;color:#aaa;text-align:center;padding:8px;">No se pudo cargar el historial.</div>';
+    return;
   }
+  renderHistorialCargas();
+}
+
+function toggleMesHistorial(clave) {
+  if (historialAbierto.meses.has(clave)) historialAbierto.meses.delete(clave);
+  else historialAbierto.meses.add(clave);
+  renderHistorialCargas();
+}
+
+function toggleDocsCarga(id) {
+  if (historialAbierto.docs.has(id)) historialAbierto.docs.delete(id);
+  else historialAbierto.docs.add(id);
+  renderHistorialCargas();
+}
+
+function renderHistorialCargas() {
+  const cont = document.getElementById('historialCargas');
+  if (!cont) return;
+
+  const badge = document.getElementById('historialCargasBadge');
+  const incompletas = cargasSII.filter(c => (parseInt(c.total)||0) > (parseInt(c.importados)||0)).length;
+  if (badge) badge.textContent = cargasSII.length
+    ? (incompletas ? `· ${incompletas} con pendientes` : '· todas completas')
+    : '';
+
+  if (!cargasSII.length) {
+    cont.innerHTML = '<div style="font-size:12px;color:#aaa;text-align:center;padding:8px;">Aún no hay cargas registradas.</div>';
+    return;
+  }
+
+  // Agrupar por mes del período que cubre la carga, no por cuándo se subió el archivo.
+  const meses = {};
+  cargasSII.forEach(c => {
+    const k = String(c.desde || c.fechaCarga || '').slice(0,7) || 'sin-fecha';
+    (meses[k] = meses[k] || []).push(c);
+  });
+  const clavesMes = Object.keys(meses).sort().reverse();
+
+  // La primera vez se abre el mes más reciente; después manda lo que el usuario dejó.
+  if (!mesesInicializados) { mesesInicializados = true; if (clavesMes.length) historialAbierto.meses.add(clavesMes[0]); }
+
+  cont.innerHTML = clavesMes.map(k => {
+    const grupo = meses[k];
+    const abierto = historialAbierto.meses.has(k);
+    let etiquetaMes = 'Sin fecha';
+    const mm = k.match(/^(\d{4})-(\d{2})$/);
+    if (mm) {
+      const nombre = MESES_LARGO[parseInt(mm[2]) - 1] || '';
+      etiquetaMes = nombre.charAt(0).toUpperCase() + nombre.slice(1) + ' ' + mm[1];
+    }
+    const docs = grupo.reduce((s,c) => s + (parseInt(c.total)||0), 0);
+    const pend = grupo.reduce((s,c) => s + Math.max(0, (parseInt(c.total)||0) - (parseInt(c.importados)||0)), 0);
+
+    return `<div style="margin-bottom:10px;">
+      <div onclick="toggleMesHistorial('${k}')" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:${abierto ? '#eef3fa' : '#f7f9fc'};border:1px solid #e3e9f0;border-radius:8px;">
+        <svg class="ico" style="color:#003a79;"><use href="#i-chevron-${abierto ? 'ar' : 'ab'}"/></svg>
+        <span style="font-size:13px;font-weight:700;color:#003a79;flex:1;">${etiquetaMes}</span>
+        <span style="font-size:10px;color:#666;white-space:nowrap;">${grupo.length} carga(s) · ${docs} doc.${pend ? ` · <strong style="color:#856404;">${pend} pendiente(s)</strong>` : ''}</span>
+      </div>
+      ${abierto ? `<div style="padding:8px 0 0 6px;">${grupo.map(tarjetaCarga).join('')}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function tarjetaCarga(c) {
+  // Defensivo: una carga antigua o una respuesta parcial puede no traer las listas.
+  const pendientes = c.pendientes || [];
+  const documentos = c.documentos || [];
+  const total = parseInt(c.total) || 0;
+  const importados = parseInt(c.importados) || 0;
+  const faltan = Math.max(0, total - importados);
+  const completa = faltan === 0;
+  const periodo = (c.desde && c.hasta)
+    ? (c.desde === c.hasta ? fmtFecha(c.desde) : `${fmtFecha(c.desde)} al ${fmtFecha(c.hasta)}`)
+    : 'Sin fecha';
+  const fmt = formatoDeArchivo(c.nombreArchivo);
+  const docsAbiertos = historialAbierto.docs.has(c.id);
+
+  return `<div style="border:1px solid ${completa ? '#d4edda' : '#ffe0b2'};background:${completa ? '#f8fff9' : '#fffdf7'};border-radius:8px;padding:10px;margin-bottom:8px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+      <span style="font-size:13px;font-weight:700;color:#333;">${periodo}</span>
+      <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:${completa ? '#d4edda' : '#ffe0b2'};color:${completa ? '#155724' : '#856404'};white-space:nowrap;">
+        ${completa ? '<svg class="ico"><use href="#i-check"/></svg> COMPLETA' : `FALTAN ${faltan}`}
+      </span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap;">
+      <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:${fmt.fondo};color:${fmt.color};white-space:nowrap;">${fmt.etiqueta}</span>
+      ${fmt.nota ? `<span style="font-size:10px;color:#aaa;">${fmt.nota}</span>` : ''}
+      ${c.nombreArchivo ? `<span style="font-size:10px;color:#bbb;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:190px;" title="${escHTML(c.nombreArchivo)}">${escHTML(c.nombreArchivo)}</span>` : ''}
+    </div>
+    <div style="font-size:11px;color:#666;margin-top:4px;">
+      ${total} documento(s) · ${importados} importado(s)${c.enDuda ? ` · <span style="color:#856404;font-weight:700;">${c.enDuda} en duda</span>` : ''}
+    </div>
+
+    ${documentos.length ? `
+      <button type="button" onclick="toggleDocsCarga('${c.id}')" style="width:100%;margin-top:8px;padding:6px;background:white;border:1px solid #e0e0e0;border-radius:7px;font-size:11px;font-weight:600;color:#003a79;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;">
+        <svg class="ico"><use href="#i-chevron-${docsAbiertos ? 'ar' : 'ab'}"/></svg> ${docsAbiertos ? 'Ocultar' : 'Ver'} los ${documentos.length} documentos
+      </button>
+      ${docsAbiertos ? `<div style="margin-top:6px;background:white;border:1px solid #eee;border-radius:7px;overflow:hidden;">
+        ${documentos.map(d => `<div style="display:flex;align-items:center;gap:8px;padding:7px 9px;border-bottom:1px solid #f5f5f5;">
+          <svg class="ico" style="color:${d.importado ? '#27ae60' : '#e0a800'};flex-shrink:0;"><use href="#i-${d.importado ? 'check-circ' : 'reloj'}"/></svg>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:11px;color:#333;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHTML(d.razonSocial || 'Documento')}</div>
+            <div style="font-size:10px;color:#999;">N° ${d.folio}${d.importado ? '' : ' · pendiente'}</div>
+            ${d.nota ? `<div style="font-size:10px;color:#856404;margin-top:2px;"><svg class="ico"><use href="#i-alerta-circ"/></svg> ${escHTML(d.nota)}</div>` : ''}
+          </div>
+          ${d.tieneDetalle ? `<button type="button" onclick="verDetalleDocumento('${d.rut}','${d.folio}')" style="padding:4px 9px;background:#f0f7ff;border:none;border-radius:6px;font-size:10px;font-weight:600;color:#003a79;cursor:pointer;white-space:nowrap;">Detalle</button>` : ''}
+        </div>`).join('')}
+      </div>` : ''}
+    ` : (!completa && pendientes.length ? `<div style="margin-top:6px;padding:6px 8px;background:#fff;border-radius:6px;border:1px solid #f0e0c0;">
+      <div style="font-size:10px;font-weight:700;color:#856404;margin-bottom:3px;">Pendientes:</div>
+      ${pendientes.slice(0,6).map(p => `<div style="font-size:11px;color:#555;">• ${p.razonSocial || 'Documento'} F.${p.folio}</div>`).join('')}
+    </div>` : '')}
+
+    <div id="notaCarga-${c.id}" data-nota="${escHTML(c.nota || '')}" style="margin-top:6px;">${c.nota ? tarjetaNotaCarga(c.id, c.nota) : ''}</div>
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+      ${c.url ? `<button onclick="reabrirCarga('${c.id}')" style="flex:1;min-width:110px;padding:6px;background:${completa ? '#f0f7ff' : '#003a79'};color:${completa ? '#003a79' : 'white'};border:${completa ? '1px solid #cfe0f5' : 'none'};border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;"><svg class="ico"><use href="#i-recargar"/></svg> ${completa ? 'Revisar carga' : 'Reabrir carga'}</button>` : ''}
+      ${c.url ? `<a href="${c.url}" target="_blank" style="flex:1;min-width:80px;padding:6px;background:white;border:1px solid #ddd;border-radius:7px;font-size:11px;font-weight:600;color:#666;text-decoration:none;text-align:center;"><svg class="ico"><use href="#i-clip"/></svg> Archivo <svg class="ico"><use href="#i-enlace-ext"/></svg></a>` : ''}
+      <button onclick="editarNotaCarga('${c.id}')" style="flex:1;min-width:80px;padding:6px;background:#f7f9fc;border:1px solid #ddd;border-radius:7px;font-size:11px;font-weight:600;color:#003a79;cursor:pointer;"><svg class="ico"><use href="#i-lapiz"/></svg> ${c.nota ? 'Editar nota' : 'Nota'}</button>
+      <button onclick="eliminarCarga('${c.id}', '${periodo.replace(/'/g,"\\'")}')" style="padding:6px 10px;background:#fff0f0;border:1px solid #f5c6cb;border-radius:7px;font-size:11px;font-weight:600;color:#c0392b;cursor:pointer;"><svg class="ico"><use href="#i-basura"/></svg></button>
+    </div>
+  </div>`;
 }
 
 // Escapa texto libre que va a parar dentro de innerHTML (notas escritas a mano).
