@@ -625,6 +625,10 @@
       <div style="font-size:13px;font-weight:700;color:#003a79;text-transform:uppercase;"><svg class="ico"><use href="#i-capas"/></svg> Historial de cargas <span id="historialCargasBadge" style="font-weight:400;color:#888;text-transform:none;"></span></div>
       <span id="historialCargasIcon" style="font-size:13px;color:#003a79;font-weight:600;">Ver <svg class="ico"><use href="#i-chevron-ab"/></svg></span>
     </div>
+    <div id="buscadorHistorialWrap" class="hidden" style="margin-top:10px;">
+      <span class="campo-busqueda"><svg class="ico"><use href="#i-buscar"/></svg><input type="text" id="buscarHistorial" placeholder="Buscar folio, RUT o proveedor en todo el historial..." oninput="renderHistorialCargas()" style="width:100%;padding:10px 14px 10px 38px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;"/></span>
+      <div id="buscarHistorialHint" style="font-size:11px;color:#888;margin-top:4px;"></div>
+    </div>
     <div id="historialCargas" class="hidden" style="margin-top:10px;"></div>
   </div>
   <div id="buscadorCargaWrap" class="hidden" style="margin-bottom:10px;">
@@ -1232,6 +1236,8 @@ function toggleHistorialCargas() {
   const icon = document.getElementById('historialCargasIcon');
   const vaAAbrir = panel.classList.contains('hidden');
   panel.classList.toggle('hidden');
+  const buscador = document.getElementById('buscadorHistorialWrap');
+  if (buscador) buscador.classList.toggle('hidden', !vaAAbrir);
   icon.innerHTML = vaAAbrir ? 'Ocultar <svg class="ico"><use href="#i-chevron-ar"/></svg>' : 'Ver <svg class="ico"><use href="#i-chevron-ab"/></svg>';
 }
 
@@ -1252,6 +1258,39 @@ async function cargarHistorialCargas() {
     return;
   }
   renderHistorialCargas();
+}
+
+// Normaliza para comparar: sin acentos, sin puntos ni guiones, en minúsculas. Así
+// "76.285.613-1", "76285613-1" y "762856131" encuentran al mismo proveedor.
+function normalizarBusqueda(t) {
+  return String(t == null ? '' : t)
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[.\-\s]/g, '');
+}
+
+// Busca en TODOS los documentos de TODAS las cargas, sin abrir ninguna.
+function buscarEnHistorial(texto) {
+  const q = normalizarBusqueda(texto);
+  if (!q) return [];
+  const salida = [];
+  cargasSII.forEach(carga => {
+    (carga.documentos || []).forEach(d => {
+      const campos = normalizarBusqueda([d.folio, d.rut, d.razonSocial].join(' '));
+      if (campos.indexOf(q) > -1) salida.push({ doc: d, carga: carga });
+    });
+  });
+  return salida;
+}
+
+function irACarga(mesClave, cargaId) {
+  const input = document.getElementById('buscarHistorial');
+  if (input) input.value = '';
+  historialAbierto.meses.add(mesClave);
+  historialAbierto.docs.add(cargaId);
+  renderHistorialCargas();
+  const el = document.getElementById('carga-' + cargaId);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function toggleMesHistorial(clave) {
@@ -1280,6 +1319,42 @@ function renderHistorialCargas() {
     cont.innerHTML = '<div style="font-size:12px;color:#aaa;text-align:center;padding:8px;">Aún no hay cargas registradas.</div>';
     return;
   }
+
+  // Con texto en el buscador se muestran los documentos que calzan, de todas las
+  // cargas juntas, en vez de la vista por meses.
+  const input = document.getElementById('buscarHistorial');
+  const consulta = input ? input.value.trim() : '';
+  const hint = document.getElementById('buscarHistorialHint');
+  if (consulta) {
+    const res = buscarEnHistorial(consulta);
+    if (hint) hint.textContent = res.length
+      ? `${res.length} documento(s) encontrado(s) en ${new Set(res.map(x => x.carga.id)).size} carga(s)`
+      : 'Sin resultados';
+    cont.innerHTML = res.length
+      ? res.map(({doc, carga}) => {
+          const mesClave = String(carga.desde || carga.fechaCarga || '').slice(0,7) || 'sin-fecha';
+          const f = formatoDeArchivo(carga.nombreArchivo);
+          return `<div style="border:1px solid #e3e9f0;border-radius:8px;padding:9px 10px;margin-bottom:7px;background:white;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <svg class="ico" style="color:${doc.importado ? '#27ae60' : '#e0a800'};flex-shrink:0;"><use href="#i-${doc.importado ? 'check-circ' : 'reloj'}"/></svg>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:12px;font-weight:700;color:#222;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHTML(doc.razonSocial || 'Documento')}</div>
+                <div style="font-size:10px;color:#888;">N° ${doc.folio} · ${doc.rut} · ${doc.importado ? 'importada' : 'pendiente'}</div>
+              </div>
+              ${doc.tieneDetalle ? `<button type="button" onclick="verDetalleDocumento('${doc.rut}','${doc.folio}')" style="padding:4px 9px;background:#f0f7ff;border:none;border-radius:6px;font-size:10px;font-weight:600;color:#003a79;cursor:pointer;white-space:nowrap;">Detalle</button>` : ''}
+            </div>
+            ${doc.nota ? `<div style="font-size:10px;color:#856404;margin-top:4px;"><svg class="ico"><use href="#i-alerta-circ"/></svg> ${escHTML(doc.nota)}</div>` : ''}
+            <div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-top:6px;border-top:1px solid #f2f2f2;">
+              <span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:5px;background:${f.fondo};color:${f.color};">${f.etiqueta}</span>
+              <span style="font-size:10px;color:#999;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${carga.desde ? fmtFecha(carga.desde) : ''}${carga.hasta && carga.hasta !== carga.desde ? ' al ' + fmtFecha(carga.hasta) : ''}</span>
+              <button type="button" onclick="irACarga('${mesClave}','${carga.id}')" style="padding:3px 9px;background:white;border:1px solid #ddd;border-radius:6px;font-size:10px;font-weight:600;color:#003a79;cursor:pointer;white-space:nowrap;">Ir a la carga</button>
+            </div>
+          </div>`;
+        }).join('')
+      : `<div style="font-size:12px;color:#aaa;text-align:center;padding:14px;">Ningún documento coincide con "${escHTML(consulta)}".</div>`;
+    return;
+  }
+  if (hint) hint.textContent = '';
 
   // Agrupar por mes del período que cubre la carga, no por cuándo se subió el archivo.
   const meses = {};
@@ -1329,7 +1404,7 @@ function tarjetaCarga(c) {
   const fmt = formatoDeArchivo(c.nombreArchivo);
   const docsAbiertos = historialAbierto.docs.has(c.id);
 
-  return `<div style="border:1px solid ${completa ? '#d4edda' : '#ffe0b2'};background:${completa ? '#f8fff9' : '#fffdf7'};border-radius:8px;padding:10px;margin-bottom:8px;">
+  return `<div id="carga-${c.id}" style="border:1px solid ${completa ? '#d4edda' : '#ffe0b2'};background:${completa ? '#f8fff9' : '#fffdf7'};border-radius:8px;padding:10px;margin-bottom:8px;">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
       <span style="font-size:13px;font-weight:700;color:#333;">${periodo}</span>
       <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:${completa ? '#d4edda' : '#ffe0b2'};color:${completa ? '#155724' : '#856404'};white-space:nowrap;">
